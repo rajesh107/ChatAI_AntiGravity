@@ -2,6 +2,12 @@ import os
 import sys
 import operator
 import pandas as pd # Required for merging logic
+
+# Force UTF-8 output on Windows to prevent emoji UnicodeEncodeError
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+if sys.stderr.encoding != "utf-8":
+    sys.stderr.reconfigure(encoding="utf-8")
 import pickle
 import zlib
 from datetime import datetime, timedelta, date 
@@ -30,8 +36,8 @@ from langgraph.graph import StateGraph, END
 # Local Imports
 from etl_cleaner import clean_and_load_data, TABLE_CONFIGS
 from system_msg import (
-    instagram_system_msg, facebook_system_msg, google_system_msg, 
-    linkedin_system_msg, shopify_system_msg, 
+    instagram_system_msg, facebook_system_msg, google_system_msg,
+    linkedin_system_msg, shopify_system_msg, google_analytics_system_msg,
     SUPERVISOR_HEADER, SUPERVISOR_GROUP_CONFIGS, SUPERVISOR_FOOTER, SHARED_AGENT_RULES
 )
 
@@ -50,9 +56,39 @@ if not REDIS_URL:
     raise RuntimeError("REDIS_URL environment variable is required")
 TARGET_REDIS_URL = REDIS_URL
 
+def _make_redis_client():
+    """Creates a Redis client with connection health settings to handle remote resets (10054)."""
+    return Redis.from_url(
+        TARGET_REDIS_URL,
+        decode_responses=False,
+        socket_keepalive=True,
+        socket_connect_timeout=10,
+        socket_timeout=30,
+        retry_on_timeout=True,
+        health_check_interval=30,
+    )
+
+def _get_redis_client():
+    """Returns a live Redis client, reconnecting if the previous connection was dropped."""
+    global redis_client_global
+    try:
+        if redis_client_global:
+            redis_client_global.ping()
+            return redis_client_global
+    except Exception:
+        pass
+    try:
+        redis_client_global = _make_redis_client()
+        redis_client_global.ping()
+        print("✅ [REDIS] Reconnected.")
+    except Exception as e:
+        print(f"❌ [REDIS] Reconnect failed: {e}")
+        redis_client_global = None
+    return redis_client_global
+
 # Initialize Global Redis Client
 try:
-    redis_client_global = Redis.from_url(TARGET_REDIS_URL, decode_responses=False)
+    redis_client_global = _make_redis_client()
     redis_client_global.ping()
     print("✅ [INIT] Global Redis Connection Established.")
 except Exception as e:
@@ -100,6 +136,14 @@ TABLE_GROUPS = {
         "user_history",
         "user_insights",
         "user_lifetime_insights"
+    ],
+    "google_analytics": [
+        "geo",
+        "campaign",
+        "categorylabel",
+        "adslot",
+        "demochannel",
+        "pages"
     ]
 }
 
@@ -130,9 +174,10 @@ def create_merged_engine(user_id: str, db_name_list: List[str], group_key: str):
     data_payload = None
     
     # 2. Try Fetching from Redis
-    if redis_client_global:
+    r = _get_redis_client()
+    if r:
         try:
-            cached_bytes = redis_client_global.get(cache_key)
+            cached_bytes = r.get(cache_key)
             if cached_bytes:
                 print(f"   ⚡ [CACHE HIT] Loading '{group_key}' data from Redis for {user_id}...")
                 data_payload = pickle.loads(cached_bytes)
@@ -184,13 +229,14 @@ def create_merged_engine(user_id: str, db_name_list: List[str], group_key: str):
                 print(f"      ❌ [FAIL] MySQL Connect Error {db_name}: {e}")
 
         # 4. Save to Redis (if we have data)
-        if redis_client_global and data_payload:
+        r = _get_redis_client()
+        if r and data_payload:
             try:
                 # COMPRESS HERE
                 pickled_data = pickle.dumps(data_payload)
                 compressed_data = zlib.compress(pickled_data)
-                
-                redis_client_global.setex(
+
+                r.setex(
                     name=cache_key,
                     time=DATA_CACHE_TTL,
                     value=compressed_data
@@ -329,6 +375,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
     add_tool_if_exists("linkedin", linkedin_system_msg, "LinkedInAgent")
     add_tool_if_exists("facebook", facebook_system_msg, "FacebookAdsAgent")
     add_tool_if_exists("instagram", instagram_system_msg, "InstagramAgent")
+    add_tool_if_exists("google_analytics", google_analytics_system_msg, "GoogleAnalyticsAgent")
 
     if not tools_for_supervisor:
         raise ValueError(f"No active platforms found for User '{user_id}'.")
@@ -391,11 +438,11 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
      # --- REDIS CHECKPOINTER ---
     try:
         # Re-use global client if available, or create new
-        if redis_client_global:
-            checkpointer = RedisSaver(redis_client=redis_client_global)
+        r_check = _get_redis_client()
+        if r_check:
+            checkpointer = RedisSaver(redis_client=r_check)
         else:
-            r_client = Redis.from_url(TARGET_REDIS_URL, decode_responses=False)
-            checkpointer = RedisSaver(redis_client=r_client)
+            checkpointer = None
             
         checkpointer.setup()
         print("   ✅ [REDIS] Checkpointer initialized.")

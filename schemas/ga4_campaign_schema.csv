@@ -1,0 +1,19 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Primary time dimension for campaign performance analysis.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+first_user_source,longtext,Traffic source that first acquired the user (e.g. google / facebook / (direct)). Attribution source dimension.
+first_user_campaign_name,longtext,Name of the campaign that first acquired the user (e.g. WW_Japan_EverGreen_Q42025_FB). The primary campaign identifier.
+first_user_campaign_id,longtext,Numeric ID of the campaign that first acquired the user. Use for joining with ad platform data.
+first_user_medium,longtext,Marketing medium that first acquired the user (e.g. cpc / organic / brand awareness). Attribution medium.
+advertiser_ad_clicks,bigint,Number of ad clicks recorded by the advertiser platform for this campaign. Tracks paid ad interaction.
+bounce_rate,double,Fraction of sessions that were not engaged (0.0–1.0). Lower is better.
+sessions,bigint,Total number of sessions attributed to this campaign.
+engaged_sessions,bigint,Number of sessions lasting 10+ seconds or with conversion or 2+ page views.
+active_users,bigint,Number of users who had an engaged session in this campaign.
+total_users,bigint,Total number of users (new + returning) attributed to this campaign.
+average_session_duration,double,Average session duration in seconds for users from this campaign.
+screen_page_views,bigint,Total page or screen views from users attributed to this campaign.
+new_users,bigint,Number of first-time users acquired through this campaign.
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.
+advertiser_ad_cost,bigint,Total ad spend reported by the advertiser platform for this campaign (in the account currency).

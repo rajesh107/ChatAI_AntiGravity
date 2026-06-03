@@ -1,0 +1,20 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Primary time dimension for event-level analysis.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+first_user_source,longtext,Traffic source that first acquired the user (e.g. google / facebook / (direct)).
+first_user_campaign_name,longtext,Campaign name under which the user was first acquired.
+event_name,longtext,Name of the GA4 event tracked (e.g. user_engagement / purchase / page_view / scroll). Core event identifier.
+first_user_campaign_id,longtext,Numeric ID of the campaign under which the user was first acquired.
+first_user_medium,longtext,Marketing medium that first acquired the user (e.g. cpc / organic / referral).
+bounce_rate,double,Fraction of sessions that were not engaged (0.0–1.0).
+sessions,bigint,Total number of sessions in which this event occurred.
+event_value,double,Monetary or custom numeric value associated with the event (e.g. revenue value for purchase events).
+engaged_sessions,bigint,Number of sessions that were engaged and recorded this event.
+event_count,bigint,Total number of times this event was fired across all sessions.
+active_users,bigint,Number of active users who triggered this event.
+total_users,bigint,Total users (new + returning) who triggered this event.
+average_session_duration,double,Average session duration in seconds for sessions containing this event.
+screen_page_views,bigint,Total page or screen views recorded in sessions that included this event.
+new_users,bigint,Number of first-time users who triggered this event.
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.

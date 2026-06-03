@@ -1,0 +1,15 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Primary time dimension for page-level performance.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+page_path_plus_query_string,longtext,Full page URL path including query string parameters (e.g. /collections/all/products/cashews?ref=sale). Identifies the specific landing page or ad slot.
+transactions,bigint,Number of completed ecommerce transactions originating from this page/ad slot.
+bounce_rate,double,Fraction of sessions that were not engaged on this page (0.0–1.0). Lower is better.
+engaged_sessions,bigint,Number of engaged sessions that included this page.
+average_session_duration,double,Average session duration in seconds for sessions that visited this page.
+total_users,bigint,Total number of users (new + returning) who visited this page.
+active_users,bigint,Number of active users who visited this page in the reporting period.
+new_users,bigint,Number of first-time users who landed on this page.
+sessions,bigint,Total sessions that included this page.
+screen_page_views,bigint,Total number of times this page was viewed.
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.

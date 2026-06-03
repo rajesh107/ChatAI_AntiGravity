@@ -1,0 +1,19 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Primary time dimension for channel-level analysis.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+first_user_source,longtext,Traffic source that first acquired the user (e.g. facebook / google / (direct)).
+first_user_campaign_name,longtext,Campaign name under which the user was first acquired.
+first_user_campaign_id,longtext,Numeric ID of the campaign under which the user was first acquired.
+first_user_default_channel_group,longtext,GA4 default channel grouping assigned to the user's first session (e.g. Organic Social / Paid Search / Direct / Referral / Organic Search). Key dimension for channel performance analysis.
+first_user_medium,longtext,Marketing medium that first acquired the user (e.g. brand awareness / cpc / organic).
+transactions,bigint,Number of completed ecommerce transactions from users in this channel group.
+bounce_rate,double,Fraction of sessions that were not engaged (0.0–1.0).
+engaged_sessions,bigint,Number of engaged sessions attributed to this channel group.
+average_session_duration,double,Average session duration in seconds for this channel.
+total_users,bigint,Total users (new + returning) from this channel.
+active_users,bigint,Number of active users from this channel.
+new_users,bigint,Number of first-time users acquired through this channel.
+sessions,bigint,Total sessions attributed to this channel group.
+screen_page_views,bigint,Total page or screen views from sessions in this channel group.
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.

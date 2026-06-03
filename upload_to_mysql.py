@@ -162,6 +162,17 @@ database_structure = {
             "insta_user_insights.csv",
             "insta_user_lifetime_insights.csv"
         ]
+    },
+    "ga4_analytics_data": {
+        # GA4 analytics tables — table names must match exactly (no prefix)
+        "google_analytics": [
+            "geo.csv",
+            "campaign.csv",
+            "categorylabel.csv",
+            "adslot.csv",
+            "demochannel.csv",
+            "pages.csv"
+        ]
     }
 }
 

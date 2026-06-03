@@ -1,6 +1,13 @@
 import os
+import sys
 import logging
-import jwt 
+import jwt
+
+# Force UTF-8 output on Windows to prevent emoji UnicodeEncodeError
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+if sys.stderr.encoding != "utf-8":
+    sys.stderr.reconfigure(encoding="utf-8")
 from typing import List, Dict
 from fastapi import FastAPI, HTTPException, Request, Depends, Security, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,12 +96,13 @@ async def shutdown_event():
 # --- Mapping Configuration ---
 # Kept simple as per request. Multiple DBs in Admin DB can map to 'FBADS', 
 # which will all group under 'facebook' key.
-TYPE_TO_AGENT_KEY = {     
-    "GOOGLEADS": "google_ads", 
-    "SHOPIFY": "shopify", 
-    "LINKEDINADS": "linkedin", 
+TYPE_TO_AGENT_KEY = {
+    "GOOGLEADS": "google_ads",
+    "SHOPIFY": "shopify",
+    "LINKEDINADS": "linkedin",
     "FBADS": "facebook",  # Map FBADS to the single facebook key
-    "INSTA": "instagram"
+    "INSTA": "instagram",
+    "GA": "google_analytics"  # GA4 analytics data
 }
 
 class ChatRequest(BaseModel):
@@ -180,7 +188,7 @@ def chat_endpoint(
     # This dependency validates the token from the header
     current_user: dict = Depends(get_current_user) 
 ):
-    print(f"🔐 Request Authorized for User: {current_user['username']}")
+    print(f"[AUTH] Request Authorized for User: {current_user['username']}")
     
     target_username = request.thread_id
     

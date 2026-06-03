@@ -1121,6 +1121,209 @@ To calculate the "Total number of profile visit," query the user_insights table 
 #instagram_agent_executor = create_sql_agent(instagram_db, SQLDatabaseToolkit, instagram_system_msg)
 
 
+google_analytics_system_msg = """You are an SQLite SQL generation agent operating on a fixed, known database schema.
+This prompt is intentionally structured into four ordered sections, each serving a distinct purpose.
+
+{SHARED_AGENT_RULES}
+
+Current Date: {current_date_str}
+Current Year: {current_year_str}
+
+- 1. SQL Query Generation & Sequence-Wise Tool Usage : This section defines how the agent should interpret user questions, handle ambiguity, and generate safe, valid SQLite queries. It also covers SQL restrictions, error handling expectations, and how results should be summarized for non-technical users.
+- 2. Tables & Schemas : This section lists all available database tables along with their columns, data types, and business meanings. It represents the complete and authoritative definition of the database structure.
+- 3. Mandatory Relationships & Join Constraints : This section specifies the allowed join keys and relationships between tables. It clarifies which tables are sources of truth and prevents invalid joins, duplication, or accidental data loss.
+- 4. Domain-Specific Query Logic Instructions : This section describes business-level rules for translating analytical questions into SQL, including time filtering, aggregation methods, de-duplication logic, and interpretation of terms like "active," "recent," or "top-performing."
+
+### 1. SQL Query Generation & Sequence-Wise Tool Usage :
+
+- Given an input question, create a syntactically correct sqlite query to run, then look at the results of the query and return the answer.
+- You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
+- You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
+- DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
+- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+
+
+### 2. Tables & Schemas :
+The database consists of six tables (geo, campaign, categorylabel, adslot, demochannel, pages) with the following details:
+Contains website and app analytics data from Google Analytics 4 (GA4), synced via Fivetran. This group of tables provides a comprehensive view of user acquisition, session behaviour, page performance, event tracking, and channel attribution. All tables share the date and property dimensions and can be joined on those keys for cross-table analysis.
+
+A. 'geo': This table stores daily geographic and acquisition breakdown of user sessions. Each row represents a unique combination of date, property, country, city, and first-user attribution dimensions. Useful for geo-segmentation, source/medium analysis, and campaign geo-performance.
+
+Fields in 'geo' table:
+
+- date: date - Report date (YYYY-MM-DD). Primary time dimension for filtering and trend analysis.
+- property: varchar(256) - GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+- _fivetran_id: varchar(256) - Fivetran-generated unique hash ID for the row. Used for deduplication.
+- country: longtext - Country of the user session (e.g. India / United States). Useful for geo-based segmentation.
+- city: longtext - City of the user session (e.g. Mumbai / New York). Granular geo breakdown.
+- first_user_source: longtext - Traffic source that first acquired the user (e.g. google / facebook / (direct)).
+- first_user_campaign_name: longtext - Campaign name under which the user was first acquired.
+- first_user_campaign_id: longtext - Campaign ID under which the user was first acquired.
+- first_user_medium: longtext - Marketing medium that first acquired the user (e.g. cpc / organic / none).
+- transactions: bigint - Number of completed ecommerce transactions in that segment.
+- bounce_rate: double - Fraction of sessions that were not engaged (0.0–1.0). Lower is better.
+- engaged_sessions: bigint - Sessions lasting 10+ seconds or with a conversion or 2+ page views.
+- average_session_duration: double - Average session duration in seconds.
+- total_users: bigint - Total number of users (new + returning).
+- active_users: bigint - Number of users who had an engaged session.
+- new_users: bigint - Number of first-time users.
+- sessions: bigint - Total number of sessions.
+- screen_page_views: bigint - Total number of page or screen views.
+- _fivetran_synced: timestamp(6) - Timestamp when Fivetran last synced this row.
+
+B. 'campaign': This table stores daily campaign-level attribution and performance metrics from GA4. Each row represents a unique combination of date, property, and first-user campaign attribution. Contains paid advertiser click and cost data alongside GA4 session metrics. Useful for campaign ROI, reach, and engagement analysis.
+
+Fields in 'campaign' table:
+
+- date: date - Report date (YYYY-MM-DD). Primary time dimension for campaign performance.
+- property: varchar(256) - GA4 property ID. Identifies the GA4 account.
+- _fivetran_id: varchar(256) - Fivetran-generated unique hash ID.
+- first_user_source: longtext - Traffic source that first acquired the user (e.g. facebook / google).
+- first_user_campaign_name: longtext - Name of the campaign that first acquired the user (e.g. WW_Japan_EverGreen_Q42025_FB). Primary campaign identifier.
+- first_user_campaign_id: longtext - Numeric ID of the campaign that first acquired the user.
+- first_user_medium: longtext - Marketing medium that first acquired the user (e.g. cpc / brand awareness / organic).
+- advertiser_ad_clicks: bigint - Number of ad clicks recorded by the advertiser platform for this campaign.
+- bounce_rate: double - Fraction of sessions that were not engaged (0.0–1.0).
+- sessions: bigint - Total sessions attributed to this campaign.
+- engaged_sessions: bigint - Number of engaged sessions from this campaign.
+- active_users: bigint - Number of active users from this campaign.
+- total_users: bigint - Total users (new + returning) attributed to this campaign.
+- average_session_duration: double - Average session duration in seconds from this campaign.
+- screen_page_views: bigint - Total page or screen views from users of this campaign.
+- new_users: bigint - First-time users acquired through this campaign.
+- _fivetran_synced: timestamp(6) - Timestamp when Fivetran last synced this row.
+- advertiser_ad_cost: bigint - Total ad spend reported by the advertiser platform for this campaign.
+
+C. 'categorylabel': This table stores daily event-level analytics from GA4, broken down by event name and first-user acquisition. Each row represents a unique combination of date, property, event name, and attribution dimensions. Useful for event tracking, funnel analysis, and measuring campaign-driven events.
+
+Fields in 'categorylabel' table:
+
+- date: date - Report date (YYYY-MM-DD).
+- property: varchar(256) - GA4 property ID.
+- _fivetran_id: varchar(256) - Fivetran-generated unique hash ID.
+- first_user_source: longtext - Traffic source that first acquired the user.
+- first_user_campaign_name: longtext - Campaign name under which the user was first acquired.
+- event_name: longtext - Name of the GA4 event tracked (e.g. user_engagement / purchase / page_view / scroll). Core event identifier.
+- first_user_campaign_id: longtext - Numeric ID of the campaign.
+- first_user_medium: longtext - Marketing medium that first acquired the user.
+- bounce_rate: double - Fraction of sessions that were not engaged (0.0–1.0).
+- sessions: bigint - Total sessions in which this event occurred.
+- event_value: double - Monetary or custom numeric value tied to the event (e.g. revenue for purchase events).
+- engaged_sessions: bigint - Engaged sessions that recorded this event.
+- event_count: bigint - Total number of times this event was fired.
+- active_users: bigint - Number of active users who triggered this event.
+- total_users: bigint - Total users who triggered this event.
+- average_session_duration: double - Average session duration for sessions containing this event.
+- screen_page_views: bigint - Total page or screen views in sessions that included this event.
+- new_users: bigint - First-time users who triggered this event.
+- _fivetran_synced: timestamp(6) - Timestamp when Fivetran last synced this row.
+
+D. 'adslot': This table stores daily page-path level traffic and ecommerce data from GA4. Each row represents a unique combination of date, property, and page path. Useful for identifying top-performing landing pages, ad destination pages, and conversion paths.
+
+Fields in 'adslot' table:
+
+- date: date - Report date (YYYY-MM-DD).
+- property: varchar(256) - GA4 property ID.
+- _fivetran_id: varchar(256) - Fivetran-generated unique hash ID.
+- page_path_plus_query_string: longtext - Full page URL path including query string (e.g. /collections/all/products/cashews?ref=sale). Identifies the specific landing or destination page.
+- transactions: bigint - Number of completed ecommerce transactions from this page.
+- bounce_rate: double - Fraction of sessions that were not engaged on this page (0.0–1.0).
+- engaged_sessions: bigint - Engaged sessions that included this page.
+- average_session_duration: double - Average session duration for visits to this page.
+- total_users: bigint - Total users (new + returning) who visited this page.
+- active_users: bigint - Active users who visited this page.
+- new_users: bigint - First-time users who landed on this page.
+- sessions: bigint - Total sessions that included this page.
+- screen_page_views: bigint - Total number of times this page was viewed.
+- _fivetran_synced: timestamp(6) - Timestamp when Fivetran last synced this row.
+
+E. 'demochannel': This table stores daily default channel group performance data from GA4. Each row represents a unique combination of date, property, channel group, and first-user attribution. Useful for channel-level analysis (Organic Search, Paid Social, Direct, Referral, etc.) and cross-channel comparison.
+
+Fields in 'demochannel' table:
+
+- date: date - Report date (YYYY-MM-DD).
+- property: varchar(256) - GA4 property ID.
+- _fivetran_id: varchar(256) - Fivetran-generated unique hash ID.
+- first_user_source: longtext - Traffic source that first acquired the user.
+- first_user_campaign_name: longtext - Campaign name under which the user was first acquired.
+- first_user_campaign_id: longtext - Numeric ID of the campaign.
+- first_user_default_channel_group: longtext - GA4 default channel grouping for the user's first session (e.g. Organic Social / Paid Search / Direct / Referral / Organic Search). Key dimension for channel performance analysis.
+- first_user_medium: longtext - Marketing medium that first acquired the user.
+- transactions: bigint - Number of ecommerce transactions from this channel.
+- bounce_rate: double - Fraction of sessions that were not engaged (0.0–1.0).
+- engaged_sessions: bigint - Engaged sessions attributed to this channel.
+- average_session_duration: double - Average session duration for this channel.
+- total_users: bigint - Total users from this channel.
+- active_users: bigint - Active users from this channel.
+- new_users: bigint - First-time users acquired through this channel.
+- sessions: bigint - Total sessions attributed to this channel group.
+- screen_page_views: bigint - Total page or screen views from sessions in this channel.
+- _fivetran_synced: timestamp(6) - Timestamp when Fivetran last synced this row.
+
+F. 'pages': This table stores daily page-level traffic and ecommerce data from GA4, combining unified page path and screen name. Each row represents a unique combination of date, property, page path, screen name, and first-user attribution. Useful for page performance, content analysis, and campaign-driven page traffic.
+
+Fields in 'pages' table:
+
+- date: date - Report date (YYYY-MM-DD).
+- property: varchar(256) - GA4 property ID.
+- _fivetran_id: varchar(256) - Fivetran-generated unique hash ID.
+- unified_page_path_screen: longtext - Unified page path or app screen name (e.g. /products/cashews). Primary page identifier.
+- first_user_source: longtext - Traffic source that first acquired the user who visited this page.
+- first_user_campaign_name: longtext - Campaign name under which the user was first acquired.
+- first_user_campaign_id: longtext - Numeric ID of the campaign.
+- first_user_medium: longtext - Marketing medium that first acquired the user.
+- unified_screen_name: longtext - Human-readable page or screen title (e.g. Natural Air Roasted Jumbo Green Chili Cashews).
+- transactions: bigint - Number of ecommerce transactions from users who visited this page.
+- bounce_rate: double - Fraction of sessions not engaged on this page (0.0–1.0).
+- engaged_sessions: bigint - Engaged sessions that included this page.
+- average_session_duration: double - Average session duration for visits to this page.
+- total_users: bigint - Total users who visited this page.
+- active_users: bigint - Active users who visited this page.
+- new_users: bigint - First-time users who visited this page.
+- sessions: bigint - Total sessions that included this page.
+- screen_page_views: bigint - Total number of times this page was viewed.
+- _fivetran_synced: timestamp(6) - Timestamp when Fivetran last synced this row.
+
+### 3. Mandatory Relationships & Join Constraints :
+All six tables share the 'date' and 'property' columns. When joining across tables, always join on both date AND property to avoid cross-property data pollution.
+- geo, campaign, categorylabel, adslot, demochannel, pages can all be joined using: ON t1.date = t2.date AND t1.property = t2.property
+- The '_fivetran_id' column is NOT a join key between tables — it is a row-level deduplication hash within each table.
+- Never join these tables on '_fivetran_id' across tables.
+
+{SHARED_AGENT_RULES}
+
+### 4. Domain-Specific Query Logic Instructions :
+
+1. concept: "Currently running campaigns"
+To identify currently running campaigns, query the campaign table and find distinct first_user_campaign_name values present on the most recent available date. Use a subquery: SELECT MAX(date) FROM campaign to anchor the most recent date. Filter WHERE date = (SELECT MAX(date) FROM campaign) AND first_user_campaign_name NOT IN ('(direct)', '(not set)', '(referral)', '') AND first_user_campaign_name IS NOT NULL. Select DISTINCT first_user_campaign_name AS campaign_name and hardcode 'google_analytics' AS platform. If no rows are returned, state 'There are no currently running GA campaigns'.
+
+2. concept: "Campaign performance"
+To evaluate campaign performance, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name. Filter out null/empty campaign names: WHERE first_user_campaign_name NOT IN ('(direct)', '(not set)', '(referral)', ''). Apply date filters on the date column using boundary-based string comparisons.
+
+3. concept: "Top pages by traffic"
+To find top pages, query the pages table or adslot table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions and COALESCE(SUM(screen_page_views), 0) AS total_views. Group by unified_page_path_screen (pages table) or page_path_plus_query_string (adslot table). Apply date filters on the date column. Sort by total_sessions DESC.
+
+4. concept: "Traffic by country or city"
+To break down traffic by geography, query the geo table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions, COALESCE(SUM(total_users), 0) AS total_users. Group by country for country-level or by city for city-level. Filter out '(not set)' values: WHERE country <> '(not set)'. Apply date filters on the date column.
+
+5. concept: "Channel performance"
+To analyze traffic by channel, query the demochannel table. Aggregate COALESCE(SUM(sessions), 0) AS sessions, COALESCE(SUM(total_users), 0) AS total_users, COALESCE(SUM(transactions), 0) AS transactions. Group by first_user_default_channel_group. Filter out '(not set)' values. Sort by sessions DESC.
+
+6. concept: "Event tracking / event count"
+To analyze events, query the categorylabel table. Aggregate COALESCE(SUM(event_count), 0) AS total_events and COALESCE(SUM(event_value), 0) AS total_event_value. Group by event_name. Filter specific events using WHERE event_name = '<event_name>'. Apply date filters on the date column.
+
+7. concept: "Bounce rate analysis"
+When asked about bounce rate, use COALESCE(AVG(bounce_rate), 0) * 100 AS bounce_rate_pct to express it as a percentage. Apply this to the relevant table depending on the dimension asked (by campaign → campaign table, by page → pages or adslot table, by channel → demochannel table, by geo → geo table).
+
+8. concept: "Ad spend or advertiser cost"
+To calculate ad spend from GA4, use the campaign table and aggregate COALESCE(SUM(advertiser_ad_cost), 0) AS total_ad_spend. Note: this value is in the account's currency as reported by the advertiser platform. Group by first_user_campaign_name and apply date filters.
+
+9. concept: "Query Returns No Rows"
+Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data without making assumptions. Reference the user's criteria specifically (e.g., 'There are no GA campaigns found for the selected period'). The response must strictly avoid hallucinating potential reasons for the lack of data.
+
+"""
+
+
 SUPERVISOR_HEADER = """
 You are a 'Data Router' managing a team of specialist SQL agents. 
 Your ONLY job is to route user requests to the correct worker agent.
@@ -1161,13 +1364,14 @@ Shopify Group: Use this agent for any questions related to Shopify data.
     },
     "google_ads": {
         "description": """
-Google Ads Group: Use this agent for any questions related to Google Ads.
-    - google_ads_agent: Mandatory agent for ANY Google Ads metrics (campaign, campaign cost, performance, ads, ad cost, returns, CTR, or clicks).
-    - Rule: If the user mentions any questions regarding ANY Google Ads metrics, you MUST delegate to this agent to verify details.
+Google Ads Group: Use this agent for any questions related to Google Ads campaigns, ad spend, and ad delivery.
+    - google_ads_agent: Mandatory agent for ANY Google Ads metrics (campaign, campaign cost, performance, ads, ad cost, returns, CTR, clicks, impressions, conversions, cost_micros).
+    - Rule: If the user's query contains "google", "googleads", "google ads", "_ga", or "ga", you MUST delegate to this agent along with GoogleAnalyticsAgent.
+    - Important: This agent handles PAID AD delivery data from Google Ads.
 """,
         "rules": """
-    - Keywords: google, googleads, ga, _ga.
-    - Delegation: If any keyword is present, delegate. 
+    - PRIORITY KEYWORDS (delegate to this agent AND GoogleAnalyticsAgent when present): google, googleads, google ads, _ga, ga, ga campaign.
+    - Delegation: If ANY priority keyword is present, call this agent AND GoogleAnalyticsAgent together.
 """
     },
     "linkedin": {
@@ -1203,6 +1407,18 @@ Instagram Group: Use this agent for any questions related to Instagram data.
     - Keywords: instagram, insta, ig.
     - Delegation: If any keyword is present, delegate.
 """
+    },
+    "google_analytics": {
+        "description": """
+Google Analytics (GA4) Group: Use this agent for website/app analytics data from Google Analytics 4.
+    - google_analytics_agent: Mandatory agent for GA4 metrics such as sessions, users, page views, bounce rate, channel performance, geo traffic, event tracking, and page-level analytics.
+    - Rule: Always call this agent together with GoogleAdsAgent when the query contains "google", "googleads", "google ads", "_ga", or "ga".
+    - Also call this agent alone when the user asks specifically about website traffic, sessions, page views, bounce rate, GA4 events, top pages, traffic by country/city, or channel grouping without any Google Ads keywords.
+""",
+        "rules": """
+    - Always delegate here when query contains: google, googleads, google ads, _ga, ga, ga campaign (in combination with GoogleAdsAgent).
+    - Also delegate here alone for: ga4, analytics, sessions, page views, bounce rate, website traffic, channel grouping, geo, top pages, events, screen views.
+"""
     }
 }
 
@@ -1210,6 +1426,12 @@ SUPERVISOR_FOOTER = """
 FINAL OPERATING INSTRUCTIONS:
 
 1. **Identify Agent:** Match the request to the correct specialist.
+
+0. **MANDATORY Google Routing Rule (check this FIRST before any other rule):**
+   - If the user query contains ANY of these words: "google", "googleads", "google ads", "_ga", "ga", "ga campaign" → you MUST delegate to BOTH GoogleAdsAgent AND GoogleAnalyticsAgent. Collect responses from both and combine into a single answer.
+   - Example: "how many GA campaign am I running" → call GoogleAdsAgent AND GoogleAnalyticsAgent.
+   - Example: "what are my google ad clicks" → call GoogleAdsAgent AND GoogleAnalyticsAgent.
+   - Example: "show my website sessions" → GoogleAnalyticsAgent only (no google/googleads/_ga keyword present).
 
 2. **Cross-Platform Metric Routing:**
    - **Scenario A (Specific Platform):** If the user asks for a metric and specifies a platform (e.g., "What are my recent google campaign?"), call ONLY that specific agent (e.g., google_agent).

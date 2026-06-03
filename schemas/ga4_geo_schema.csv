@@ -1,0 +1,20 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Used for time-based filtering and trend analysis.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account/property the data belongs to.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+country,longtext,Country of the user session (e.g. India / United States). Useful for geo-based segmentation.
+city,longtext,City of the user session (e.g. Mumbai / New York). Granular geo breakdown.
+first_user_source,longtext,Traffic source that first acquired the user (e.g. google / facebook / (direct)). Attribution source.
+first_user_campaign_name,longtext,Campaign name under which the user was first acquired. Links sessions to marketing campaigns.
+first_user_campaign_id,longtext,Campaign ID under which the user was first acquired. Numeric identifier for the campaign.
+first_user_medium,longtext,Marketing medium that first acquired the user (e.g. cpc / organic / none). Attribution medium.
+transactions,bigint,Number of completed ecommerce transactions in that session group.
+bounce_rate,double,Fraction of sessions that were not engaged (0.0 to 1.0). Lower is better.
+engaged_sessions,bigint,Number of sessions that lasted more than 10 seconds or had a conversion or 2+ page views.
+average_session_duration,double,Average session duration in seconds for this segment.
+total_users,bigint,Total number of users (new + returning) in the segment.
+active_users,bigint,Number of users who had an engaged session during the period.
+new_users,bigint,Number of first-time users in the segment.
+sessions,bigint,Total number of sessions in the segment.
+screen_page_views,bigint,Total number of page views or screen views recorded.
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.

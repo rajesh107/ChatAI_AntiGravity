@@ -1,0 +1,20 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Primary time dimension for page-level traffic analysis.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+unified_page_path_screen,longtext,Unified page path or screen name across web and app (e.g. /products/cashews). The primary page identifier.
+first_user_source,longtext,Traffic source that first acquired the user visiting this page (e.g. (direct) / google / facebook).
+first_user_campaign_name,longtext,Campaign name under which the user visiting this page was first acquired.
+first_user_campaign_id,longtext,Numeric ID of the campaign under which the user was first acquired.
+first_user_medium,longtext,Marketing medium that first acquired the user (e.g. none / cpc / organic).
+unified_screen_name,longtext,Human-readable screen or page title (e.g. Natural Air Roasted Jumbo Green Chili Cashews). The display name of the page.
+transactions,bigint,Number of completed ecommerce transactions from users who visited this page.
+bounce_rate,double,Fraction of sessions that were not engaged on this page (0.0–1.0).
+engaged_sessions,bigint,Number of engaged sessions that included this page.
+average_session_duration,double,Average session duration in seconds for sessions visiting this page.
+total_users,bigint,Total users (new + returning) who visited this page.
+active_users,bigint,Number of active users who visited this page.
+new_users,bigint,Number of first-time users who visited this page.
+sessions,bigint,Total number of sessions that included this page.
+screen_page_views,bigint,Total number of times this page was viewed (including repeat views in same session).
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.

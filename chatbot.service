@@ -1,15 +1,36 @@
 [Unit]
-Description=Dynamic Multi-Tenant Marketing Agent (FastAPI)
+Description=ChatAI AntiGravity — Dynamic Multi-Tenant Marketing Agent (FastAPI)
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/chatbot
+
+# Load secrets from .env
 EnvironmentFile=/home/ubuntu/chatbot/.env
-ExecStart=/home/ubuntu/chatbot/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Fix Unicode/emoji encoding on Linux (prevents UnicodeEncodeError in logs)
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/home/ubuntu/chatbot/venv/bin/uvicorn main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 2 \
+    --log-level info
+
+# Restart policy
 Restart=always
-RestartSec=3
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logging — view with: journalctl -u chatbot -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chatbot
 
 [Install]
 WantedBy=multi-user.target

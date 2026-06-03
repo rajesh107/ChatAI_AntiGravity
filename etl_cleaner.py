@@ -279,6 +279,126 @@ TABLE_CONFIGS = {
             "metric": String(100),
             "value": DECIMAL(10, 2)
         }
+    },
+
+    # ==========================================
+    # --- GOOGLE ANALYTICS (GA4) ---
+    # ==========================================
+    "geo": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["bounce_rate", "average_session_duration"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "transactions": BigInteger,
+            "engaged_sessions": BigInteger,
+            "total_users": BigInteger,
+            "active_users": BigInteger,
+            "new_users": BigInteger,
+            "sessions": BigInteger,
+            "screen_page_views": BigInteger,
+            "bounce_rate": DECIMAL(10, 6),
+            "average_session_duration": DECIMAL(15, 6)
+        }
+    },
+    "campaign": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["bounce_rate", "average_session_duration"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "advertiser_ad_clicks": BigInteger,
+            "sessions": BigInteger,
+            "engaged_sessions": BigInteger,
+            "active_users": BigInteger,
+            "total_users": BigInteger,
+            "new_users": BigInteger,
+            "screen_page_views": BigInteger,
+            "advertiser_ad_cost": BigInteger,
+            "bounce_rate": DECIMAL(10, 6),
+            "average_session_duration": DECIMAL(15, 6)
+        }
+    },
+    "categorylabel": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["bounce_rate", "average_session_duration", "event_value"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "sessions": BigInteger,
+            "engaged_sessions": BigInteger,
+            "event_count": BigInteger,
+            "active_users": BigInteger,
+            "total_users": BigInteger,
+            "new_users": BigInteger,
+            "screen_page_views": BigInteger,
+            "bounce_rate": DECIMAL(10, 6),
+            "average_session_duration": DECIMAL(15, 6),
+            "event_value": DECIMAL(15, 6)
+        }
+    },
+    "adslot": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["bounce_rate", "average_session_duration"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "transactions": BigInteger,
+            "engaged_sessions": BigInteger,
+            "total_users": BigInteger,
+            "active_users": BigInteger,
+            "new_users": BigInteger,
+            "sessions": BigInteger,
+            "screen_page_views": BigInteger,
+            "bounce_rate": DECIMAL(10, 6),
+            "average_session_duration": DECIMAL(15, 6)
+        }
+    },
+    "demochannel": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["bounce_rate", "average_session_duration"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "transactions": BigInteger,
+            "engaged_sessions": BigInteger,
+            "total_users": BigInteger,
+            "active_users": BigInteger,
+            "new_users": BigInteger,
+            "sessions": BigInteger,
+            "screen_page_views": BigInteger,
+            "bounce_rate": DECIMAL(10, 6),
+            "average_session_duration": DECIMAL(15, 6)
+        }
+    },
+    "pages": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["bounce_rate", "average_session_duration"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "transactions": BigInteger,
+            "engaged_sessions": BigInteger,
+            "total_users": BigInteger,
+            "active_users": BigInteger,
+            "new_users": BigInteger,
+            "sessions": BigInteger,
+            "screen_page_views": BigInteger,
+            "bounce_rate": DECIMAL(10, 6),
+            "average_session_duration": DECIMAL(15, 6)
+        }
     }
 }
 
