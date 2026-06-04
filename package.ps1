@@ -76,10 +76,12 @@ if (Test-Path $ENV_FILE) {
     Write-Host "  [+] .env.example (generated from .env)"
 }
 
-# Build tar.gz using tar (built into Windows 10+)
+# Build tar.gz — tar from INSIDE the project folder so files extract directly
+# (no top-level 'chatbot/' subfolder), compatible with:
+#   tar -xzf ~/chatbot-v2.tar.gz -C /home/ubuntu/chatbot-v2
 $OUTPUT = Join-Path $SCRIPT_DIR $ARCHIVE_NAME
-Push-Location $STAGE_DIR
-tar -czf $OUTPUT $PROJECT_NAME
+Push-Location $APP_DIR
+tar -czf $OUTPUT .
 Pop-Location
 
 # Cleanup staging
