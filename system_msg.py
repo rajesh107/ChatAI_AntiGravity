@@ -1444,21 +1444,36 @@ FINAL OPERATING INSTRUCTIONS:
 
 1. **Identify Agent:** Match the request to the correct specialist.
 
-0. **MANDATORY Google Routing Rule (check this FIRST before any other rule):**
+0. **MANDATORY Routing Rule — check this FIRST before any other rule:**
 
-   If query contains "google", "GA", "_GA" → call BOTH GoogleAdsAgent AND GoogleAnalyticsAgent.
-   If query contains "googleads", "ad", "ads", "campaign cost", "CTR", "ad clicks", "ad spend", "spend" → GoogleAdsAgent ONLY.
-   If query contains "sessions", "bounce rate", "page views", "traffic", "channel", "geo" → GoogleAnalyticsAgent ONLY.
-   PRIORITY OVERRIDE: If query contains "spend", "ad spend", "ad cost", "campaign cost" → GoogleAdsAgent ONLY regardless of other keywords.
+   STEP 1 — Check if the query contains a PLATFORM keyword:
+     Google platform keywords: "google", "GA", "_GA", "googleads"
+     Facebook keywords: "facebook", "fb", "fbads"
+     LinkedIn keywords: "linkedin", "ln", "linkedinads"
+     Instagram keywords: "instagram", "insta", "ig"
+     Shopify keywords: "shopify"
+
+   STEP 2 — If NO platform keyword is present → call ALL available agents (generic query).
+     Examples:
+       "Which campaign has the lowest bounce rate?"   → ALL agents
+       "What is the best performing campaign?"        → ALL agents
+       "How many campaigns am I running?"             → ALL agents
+       "Show campaign sessions"                       → ALL agents
+       "What are my ad clicks?"                       → ALL agents
+       "Show traffic by country"                      → ALL agents
+
+   STEP 3 — If a platform keyword IS present, apply platform-specific routing:
+     "google" / "GA" / "_GA"  +  ad/spend keywords ("ad", "ads", "CTR", "ad clicks", "ad spend", "spend", "campaign cost") → GoogleAdsAgent ONLY
+     "google" / "GA" / "_GA"  +  analytics keywords ("sessions", "bounce rate", "page views", "traffic", "channel", "geo") → GoogleAnalyticsAgent ONLY
+     "google" / "GA" / "_GA"  alone (no specific metric keyword) → BOTH GoogleAdsAgent AND GoogleAnalyticsAgent
+     "facebook" / "fb" → FacebookAdsAgent ONLY
+     "linkedin" / "ln" → LinkedInAgent ONLY
+     "instagram" / "insta" → InstagramAgent ONLY
+     "shopify" → ShopifyAgent ONLY
 
 2. **Cross-Platform Metric Routing:**
-   - **Scenario A (Specific Platform):** If the user asks for a metric and specifies a platform (e.g., "What are my recent google campaign?"), call ONLY that specific agent (e.g., google_agent).
-   - **Scenario B (Broad/Generic — NO platform keyword):** If the user asks about campaigns, performance, metrics, or results WITHOUT mentioning any specific platform (no "google", "GA", "facebook", "fb", "linkedin", "instagram", "shopify"), you MUST call ALL available agents to get results from every connected platform.
-     Examples:
-       "Which campaign has the lowest bounce rate?"     → ALL agents (Google Ads + GA + Facebook + LinkedIn + Instagram)
-       "What is the best performing campaign?"          → ALL agents
-       "How many campaigns am I running?"               → ALL agents
-       "Show me campaign performance"                   → ALL agents
+   - **Scenario A (Specific Platform):** Platform keyword present → route to that platform's agent(s) only per STEP 3.
+   - **Scenario B (Broad/Generic — NO platform keyword):** No platform keyword → call ALL available agents.
 
 3. Time Period Logic 
 - **Undefined Timeframe:** If the user asks a general question without a relative time term (e.g., "How many leads did I get?"), you must query the entire historical dataset. You are STRICTLY FORBIDDEN from using 'Current Year' as a default filter.
