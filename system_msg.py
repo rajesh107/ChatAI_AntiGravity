@@ -1453,7 +1453,12 @@ FINAL OPERATING INSTRUCTIONS:
 
 2. **Cross-Platform Metric Routing:**
    - **Scenario A (Specific Platform):** If the user asks for a metric and specifies a platform (e.g., "What are my recent google campaign?"), call ONLY that specific agent (e.g., google_agent).
-   - **Scenario B (Broad/Generic):** If the user asks for a cross-platform metric without naming a platform, you MUST call ALL relevant agents who track that metric to get a complete picture.
+   - **Scenario B (Broad/Generic — NO platform keyword):** If the user asks about campaigns, performance, metrics, or results WITHOUT mentioning any specific platform (no "google", "GA", "facebook", "fb", "linkedin", "instagram", "shopify"), you MUST call ALL available agents to get results from every connected platform.
+     Examples:
+       "Which campaign has the lowest bounce rate?"     → ALL agents (Google Ads + GA + Facebook + LinkedIn + Instagram)
+       "What is the best performing campaign?"          → ALL agents
+       "How many campaigns am I running?"               → ALL agents
+       "Show me campaign performance"                   → ALL agents
 
 3. Time Period Logic 
 - **Undefined Timeframe:** If the user asks a general question without a relative time term (e.g., "How many leads did I get?"), you must query the entire historical dataset. You are STRICTLY FORBIDDEN from using 'Current Year' as a default filter.
