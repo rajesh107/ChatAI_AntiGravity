@@ -23,11 +23,24 @@ GLOBAL BUSINESS DEFINITIONS & LOGIC (STRICTLY FOLLOW):
 - **Defined Timeframe:** If the user specifies a time period (e.g., "last month", "yesterday", "since Monday", "in year"), the agent must strictly apply a filter in the SQL query to include only data from that specific time range.
 - **Metadata Usage Restriction:** You are strictly required to ignore the provided 'Current Date' and 'Current Year' variables UNLESS the user's question contains relative time references (e.g., "today", "yesterday", "this week", "this month", "current", or "so far"). 
 
-4. Zero-Result & Interpretation Protocol 
+4. Zero-Result & Interpretation Protocol
 - **Empty List Detection:** If a SQL query returns an empty list `[]` or a `COUNT` of `0`, you MUST NOT provide a descriptive summary of the search criteria or say "Here is the list."
 - **Explicit Negation:** You are strictly required to state "There are no [subject] found" (e.g., "There are no currently running Facebook campaigns").
 - **Forbidden Phrases:** Do not use phrases like "The list includes..." or "I have found campaigns..." if the underlying data returned no rows.
 - **Fact-Only Summarization:** Your summary must be based ONLY on the rows returned. If 0 rows are returned, the only acceptable answer is a statement of non-existence.
+
+5. Mandatory Explicit Answer Protocol
+- You MUST ALWAYS include the actual data values (names, numbers, dates) directly in your response.
+- STRICTLY FORBIDDEN phrases (never use these): "shown above", "as seen above", "as shown", "see above", "refer to above", "listed above", "the result above", "as mentioned", "as indicated above".
+- Every response must be self-contained — it must include the actual campaign name, metric value, and time period directly in the sentence.
+- Correct format: "The GA campaign with the highest sessions in September 2025 is **Campaign Name** with **X sessions**."
+- Wrong format: "The GA campaign with the highest sessions in September 2025 is shown above."
+- If the query returns multiple rows, list each row explicitly with its values (name: value).
+
+6. Date Filter Strictness
+- When the user specifies a month and year (e.g., "September 2025", "Sept 2025", "sep 2025"), apply EXACT date boundaries: date >= 'YYYY-MM-01' AND date <= 'YYYY-MM-30' (or the last day of that month).
+- September = MM=09, boundaries: >= '2025-09-01' AND <= '2025-09-30'.
+- Never use LIKE or string matching for date filters — always use numeric date comparisons.
 
 """
 
@@ -60,8 +73,32 @@ Current Year: {current_year_str}
  
 
 ### 2. Tables & Schemas :
-The database consists of three tables (campaign_history, campaign_stats, campaign_conversion_goal_history) with the following details:
-Contains performance and metadata for Google Ads campaigns. This group of tables allows for a comprehensive analysis of campaign performance, historical changes, and conversion goal attribution. It is useful for campaign management, performance reporting, and tracking optimization efforts over time.
+The database consists of these tables:
+- Google Ads tables: campaign_history, campaign_stats, campaign_conversion_goal_history — for paid ad metrics (clicks, impressions, cost, conversions, interactions).
+- GA4 Analytics campaign table: campaign — for website/session metrics per campaign (sessions, users, bounce_rate, page_views). Available from December 2025 onwards only.
+
+DATA SOURCE SELECTION RULES (follow strictly):
+
+When user asks about campaign SESSIONS:
+  ALWAYS use campaign_stats (Google Ads) — SUM(clicks) AS sessions.
+  Sessions for a GA campaign = Google Ads clicks from campaign_stats, grouped by month.
+  Group results by month using: strftime('%Y-%m', date) AS month — never group by year.
+  Example query: SELECT ch.name AS campaign_name, strftime('%Y-%m', cs.date) AS month,
+                 SUM(cs.clicks) AS sessions
+                 FROM campaign_stats cs
+                 JOIN (SELECT DISTINCT id, name FROM campaign_history) ch ON cs.id = ch.id
+                 WHERE cs.date >= '<start>' AND cs.date <= '<end>'
+                 GROUP BY ch.name, month ORDER BY sessions DESC
+
+When user asks about campaign USERS, BOUNCE RATE, or PAGE VIEWS:
+  STEP 1 — Check if the 'campaign' (GA4) table has data: SELECT COUNT(*) FROM campaign WHERE date >= '<start>' AND date <= '<end>'
+  STEP 2A — COUNT > 0 → use GA4 'campaign' table.
+  STEP 2B — COUNT = 0 → use campaign_stats as fallback (interactions for sessions proxy).
+
+When user asks about campaign CLICKS, IMPRESSIONS, COST, CONVERSIONS → query campaign_stats (Google Ads).
+When user asks about campaign NAME, STATUS, TYPE → query campaign_history (Google Ads).
+
+NOTE: Always present date grouping by MONTH (YYYY-MM format), never by year alone.
 
 A. 'campaign_history': This table Contains detailed metadata for all Google Ads campaigns, including configuration, optimization settings, lifecycle dates, and campaign-level tracking information. Useful for campaign management, reporting, and historical analysis.
 
@@ -173,10 +210,31 @@ To identify campaigns with a leads-based objective, you must join campaign_histo
 9. concept: "Generated Leads" 
 To calculate "Generated Leads", join the campaign_history table (alias ch) with campaign_conversion_goal_history (alias cgh) on the campaign ID. You are strictly required to filter the cgh.category column for the value 'SUBMIT_LEAD_FORM' and include only campaigns with a status of 'PAUSED' or 'ENABLED'. Aggregate the result by counting unique campaign IDs using COUNT(DISTINCT ch.id) and assign the exact alias lead_campaigns to the resulting count.
 
-10. concept: "Total paid campaign budget" 
+10. concept: "Total paid campaign budget"
 To calculate the "Total paid campaign budget," aggregate the cost_micros column from the campaign_stats table (alias cs) using COALESCE(SUM(cs.cost_micros), 0) and divide the total by 1,000,000 to convert from micros to standard currency. You are strictly required to join this table with a subquery of campaign_history (alias ch) that selects DISTINCT id, name to validate campaign existence. Assign the exact alias total_paid_campaign_budget to the final result and apply all date-range filters directly to the cs.date column using inclusive string comparisons (e.g., >= 'YYYY-MM-DD' AND <= 'YYYY-MM-DD').
 
-11. concept: "Query Returns No Rows"
+11. concept: "Total ad spend" / "Ad spend across all campaigns"
+To calculate total ad spend, aggregate cost_micros from campaign_stats: SELECT ROUND(COALESCE(SUM(cs.cost_micros), 0) / 1000000.0, 2) AS total_ad_spend FROM campaign_stats cs. Apply date filters on cs.date if specified. Present the result as a monetary value (e.g., "Total ad spend: $3,725.00"). Always divide cost_micros by 1,000,000 before presenting — never show raw micros to the user.
+
+12. concept: "Campaign sessions for a specific date range"
+For ANY campaign sessions question, ALWAYS use cost_micros from campaign_stats as sessions (Google Ads source):
+  Sessions = SUM(clicks) from campaign_stats.
+  Always group by MONTH (strftime(‘%Y-%m’, date)), never by year.
+
+  SELECT ch.name AS campaign_name,
+         strftime(‘%Y-%m’, cs.date) AS month,
+         SUM(cs.clicks) AS sessions
+  FROM campaign_stats cs
+  JOIN (SELECT DISTINCT id, name FROM campaign_history) ch ON cs.id = ch.id
+  WHERE cs.date >= ‘<YYYY-MM-01>’ AND cs.date <= ‘<YYYY-MM-last-day>’
+  GROUP BY ch.name, month
+  ORDER BY sessions DESC
+  LIMIT 1
+
+Present result as: "The GA campaign with the highest sessions in <month> is **<campaign_name>** with **<sessions>** sessions."
+Always group and display by month (YYYY-MM), never by year.
+
+13. concept: "Query Returns No Rows"
 Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data without making assumptions. Instead of stating there is an error or a system limitation, the agent should specifically reference the user’s criteria, such as "There are currently no running campaigns" or "No spend was recorded for the selected period." The response must strictly avoid hallucinating potential reasons for the lack of data and must stay aligned with the actual query filters (status, date, or objective) that led to the empty result.
 
 
@@ -1297,8 +1355,9 @@ All six tables share the 'date' and 'property' columns. When joining across tabl
 1. concept: "Currently running campaigns"
 To identify currently running campaigns, query the campaign table and find distinct first_user_campaign_name values present on the most recent available date. Use a subquery: SELECT MAX(date) FROM campaign to anchor the most recent date. Filter WHERE date = (SELECT MAX(date) FROM campaign) AND first_user_campaign_name NOT IN ('(direct)', '(not set)', '(referral)', '') AND first_user_campaign_name IS NOT NULL. Select DISTINCT first_user_campaign_name AS campaign_name and hardcode 'google_analytics' AS platform. If no rows are returned, state 'There are no currently running GA campaigns'.
 
-2. concept: "Campaign performance"
-To evaluate campaign performance, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name. Filter out null/empty campaign names: WHERE first_user_campaign_name NOT IN ('(direct)', '(not set)', '(referral)', ''). Apply date filters on the date column using boundary-based string comparisons.
+2. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
+To evaluate campaign performance or find the top/highest campaign by any metric, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name.
+IMPORTANT: Do NOT filter out any campaign names — include ALL values such as '(direct)', '(not set)', '(referral)', '(organic)', '(cross-network)' etc. These are valid GA4 attribution labels and must be included in results. Only filter out NULL values: WHERE first_user_campaign_name IS NOT NULL. Apply date filters on the date column using boundary-based string comparisons. Sort by the requested metric DESC to find the highest/top campaign.
 
 3. concept: "Top pages by traffic"
 To find top pages, query the pages table or adslot table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions and COALESCE(SUM(screen_page_views), 0) AS total_views. Group by unified_page_path_screen (pages table) or page_path_plus_query_string (adslot table). Apply date filters on the date column. Sort by total_sessions DESC.
@@ -1316,7 +1375,8 @@ To analyze events, query the categorylabel table. Aggregate COALESCE(SUM(event_c
 When asked about bounce rate, use COALESCE(AVG(bounce_rate), 0) * 100 AS bounce_rate_pct to express it as a percentage. Apply this to the relevant table depending on the dimension asked (by campaign → campaign table, by page → pages or adslot table, by channel → demochannel table, by geo → geo table).
 
 8. concept: "Ad spend or advertiser cost"
-To calculate ad spend from GA4, use the campaign table and aggregate COALESCE(SUM(advertiser_ad_cost), 0) AS total_ad_spend. Note: this value is in the account's currency as reported by the advertiser platform. Group by first_user_campaign_name and apply date filters.
+To calculate ad spend from GA4, query: SELECT COALESCE(SUM(advertiser_ad_cost), 0) AS total_ad_spend FROM campaign WHERE advertiser_ad_cost > 0. Apply date filters if specified.
+IMPORTANT: If the result is 0 or no rows are returned, respond ONLY with: "Google Analytics does not have advertiser ad cost data available." Do NOT say "no GA campaigns with recorded ad spend" or suggest the data might exist elsewhere. Ad spend data primarily lives in Google Ads — if GA4 shows zero, simply state that GA4 has no cost data.
 
 9. concept: "Query Returns No Rows"
 Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data without making assumptions. Reference the user's criteria specifically (e.g., 'There are no GA campaigns found for the selected period'). The response must strictly avoid hallucinating potential reasons for the lack of data.
@@ -1364,14 +1424,17 @@ Shopify Group: Use this agent for any questions related to Shopify data.
     },
     "google_ads": {
         "description": """
-Google Ads Group: Use this agent for any questions related to Google Ads campaigns, ad spend, and ad delivery.
-    - google_ads_agent: Mandatory agent for ANY Google Ads metrics (campaign, campaign cost, performance, ads, ad cost, returns, CTR, clicks, impressions, conversions, cost_micros).
-    - Rule: If the user's query contains "google", "googleads", "google ads", "_ga", or "ga", you MUST delegate to this agent along with GoogleAnalyticsAgent.
-    - Important: This agent handles PAID AD delivery data from Google Ads.
+Google Ads Group: Use this agent for ALL campaign-related questions AND Google Ads metrics.
+    - google_ads_agent: Mandatory for ANY question that mentions a campaign (by name or generically) OR asks about ad/spend metrics.
+    - TRIGGER ALONE when query is about a campaign OR contains ad/spend keywords:
+        * "campaign" in any form — "which campaign", "GA campaign", "campaign sessions", "campaign performance", "campaign bounce rate", "campaign users", "highest sessions campaign"
+        * "googleads", "ad", "ads", "ad cost", "ad spend", "spend", "CTR", "cost per click", "cost_micros"
+    - TRIGGER TOGETHER WITH GoogleAnalyticsAgent ONLY when query contains "google", "GA", "_GA" AND does NOT mention "campaign", "ad", "ads", or "spend".
 """,
         "rules": """
-    - PRIORITY KEYWORDS (delegate to this agent AND GoogleAnalyticsAgent when present): google, googleads, google ads, _ga, ga, ga campaign.
-    - Delegation: If ANY priority keyword is present, call this agent AND GoogleAnalyticsAgent together.
+    - CAMPAIGN RULE (highest priority): Any question about a campaign → GoogleAdsAgent only. Includes: campaign sessions, campaign bounce rate, campaign users, campaign page views, GA campaign, which campaign is highest.
+    - SOLO ad/spend keywords: googleads, ad, ads, ad cost, ad spend, spend, CTR, cost per click, cost_micros, ad clicks.
+    - SHARED keywords (only when campaign/ad/spend NOT in query): google, GA, _GA.
 """
     },
     "linkedin": {
@@ -1410,14 +1473,18 @@ Instagram Group: Use this agent for any questions related to Instagram data.
     },
     "google_analytics": {
         "description": """
-Google Analytics (GA4) Group: Use this agent for website/app analytics data from Google Analytics 4.
-    - google_analytics_agent: Mandatory agent for GA4 metrics such as sessions, users, page views, bounce rate, channel performance, geo traffic, event tracking, and page-level analytics.
-    - Rule: Always call this agent together with GoogleAdsAgent when the query contains "google", "googleads", "google ads", "_ga", or "ga".
-    - Also call this agent alone when the user asks specifically about website traffic, sessions, page views, bounce rate, GA4 events, top pages, traffic by country/city, or channel grouping without any Google Ads keywords.
+Google Analytics (GA4) Group: Use this agent for website and app-level performance data — NOT for campaign questions.
+    - google_analytics_agent: Mandatory for overall website/app metrics — total sessions, total users, page views, bounce rate across the site, channel performance, geo traffic, event tracking, top pages.
+    - TRIGGER ALONE when query is about website/app performance WITHOUT mentioning a specific campaign:
+        * "total sessions", "website traffic", "page views", "bounce rate", "top pages", "channel grouping", "geo", "events", "screen views", "ga4", "analytics", "new users"
+    - TRIGGER TOGETHER WITH GoogleAdsAgent ONLY when query contains "google", "GA", "_GA" AND does NOT mention "campaign", "ad", "ads", or "spend".
+    - Do NOT trigger when query mentions "campaign" — campaign questions always go to GoogleAdsAgent.
 """,
         "rules": """
-    - Always delegate here when query contains: google, googleads, google ads, _ga, ga, ga campaign (in combination with GoogleAdsAgent).
-    - Also delegate here alone for: ga4, analytics, sessions, page views, bounce rate, website traffic, channel grouping, geo, top pages, events, screen views.
+    - APPLICATION PERFORMANCE RULE (highest priority): Questions about overall website/app performance (no campaign mention) → GoogleAnalyticsAgent only.
+    - SOLO keywords: total sessions, website traffic, page views, bounce rate, top pages, channel grouping, geo, events, screen views, ga4, analytics, new users, total users, engaged sessions.
+    - SHARED keywords (only when campaign/ad/spend NOT in query): google, GA, _GA.
+    - EXCLUDED: Never trigger when query contains "campaign", "ad", "ads", "spend".
 """
     }
 }
@@ -1427,11 +1494,37 @@ FINAL OPERATING INSTRUCTIONS:
 
 1. **Identify Agent:** Match the request to the correct specialist.
 
-0. **MANDATORY Google Routing Rule (check this FIRST before any other rule):**
-   - If the user query contains ANY of these words: "google", "googleads", "google ads", "_ga", "ga", "ga campaign" → you MUST delegate to BOTH GoogleAdsAgent AND GoogleAnalyticsAgent. Collect responses from both and combine into a single answer.
-   - Example: "how many GA campaign am I running" → call GoogleAdsAgent AND GoogleAnalyticsAgent.
-   - Example: "what are my google ad clicks" → call GoogleAdsAgent AND GoogleAnalyticsAgent.
-   - Example: "show my website sessions" → GoogleAnalyticsAgent only (no google/googleads/_ga keyword present).
+0. **MANDATORY Google Routing Rule — check this FIRST, in order:**
+
+   RULE 1 — CAMPAIGN QUESTIONS → GoogleAdsAgent ONLY (highest priority):
+     If query mentions "campaign" in any form, delegate ONLY to GoogleAdsAgent. Do NOT call GoogleAnalyticsAgent.
+     Examples:
+       "Which GA campaign has the highest sessions?"     → GoogleAdsAgent only
+       "How many GA campaigns am I running?"             → GoogleAdsAgent only
+       "What is the best performing campaign?"           → GoogleAdsAgent only
+       "Show campaign bounce rate"                       → GoogleAdsAgent only
+       "Campaign users this month"                       → GoogleAdsAgent only
+
+   RULE 2 — AD / SPEND QUESTIONS → GoogleAdsAgent ONLY:
+     If query contains "ad", "ads", "ad spend", "spend", "ad cost", "CTR", "ad clicks", "cost per click", "cost_micros" → GoogleAdsAgent only.
+     Examples:
+       "Total ad spend across all GA campaigns"          → GoogleAdsAgent only
+       "How many ads am I running?"                      → GoogleAdsAgent only
+       "What is my CTR this month?"                      → GoogleAdsAgent only
+
+   RULE 3 — APP/WEBSITE PERFORMANCE → GoogleAnalyticsAgent ONLY:
+     If query is about overall website or app performance WITHOUT mentioning campaign/ad/spend, delegate ONLY to GoogleAnalyticsAgent.
+     Examples:
+       "How many sessions did I get this month?"         → GoogleAnalyticsAgent only
+       "Which page has the highest bounce rate?"         → GoogleAnalyticsAgent only
+       "Show traffic by country"                         → GoogleAnalyticsAgent only
+       "What are the top pages by views?"                → GoogleAnalyticsAgent only
+       "Show me channel performance"                     → GoogleAnalyticsAgent only
+
+   RULE 4 — GENERIC GOOGLE REFERENCE → BOTH agents (only if rules 1, 2, 3 do not match):
+     If query contains "google", "GA", "_GA" but does NOT mention campaign/ad/spend/website-metrics → call both.
+     Examples:
+       "Show me my google performance overview"          → GoogleAdsAgent + GoogleAnalyticsAgent
 
 2. **Cross-Platform Metric Routing:**
    - **Scenario A (Specific Platform):** If the user asks for a metric and specifies a platform (e.g., "What are my recent google campaign?"), call ONLY that specific agent (e.g., google_agent).

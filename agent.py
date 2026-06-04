@@ -369,8 +369,33 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
                 active_descriptions.append(SUPERVISOR_GROUP_CONFIGS[key]["description"])
                 active_rules.append(SUPERVISOR_GROUP_CONFIGS[key]["rules"])
 
-    # Register keys (Map matches main.py TYPE_TO_AGENT_KEY values)
-    add_tool_if_exists("google_ads", google_system_msg, "GoogleAdsAgent")
+    # --- GoogleAdsAgent: merge GA4 campaign tables into engine when both platforms active ---
+    # This allows GoogleAdsAgent to answer campaign-session questions (sessions data in GA4)
+    if "google_ads" in active_db_map:
+        _orig_db_list  = list(active_db_map["google_ads"])
+        _orig_tables   = list(TABLE_GROUPS["google_ads"])
+
+        if "google_analytics" in active_db_map:
+            active_db_map["google_ads"] = _orig_db_list + list(active_db_map["google_analytics"])
+            TABLE_GROUPS["google_ads"]  = _orig_tables  + list(TABLE_GROUPS["google_analytics"])
+
+        tool = create_agent_tool(
+            "google_ads",
+            google_system_msg,
+            "GoogleAdsAgent",
+            SUPERVISOR_GROUP_CONFIGS["google_ads"]["description"],
+        )
+
+        # Restore originals so google_analytics agent is unaffected
+        active_db_map["google_ads"] = _orig_db_list
+        TABLE_GROUPS["google_ads"]  = _orig_tables
+
+        if tool:
+            tools_for_supervisor.append(tool)
+            active_descriptions.append(SUPERVISOR_GROUP_CONFIGS["google_ads"]["description"])
+            active_rules.append(SUPERVISOR_GROUP_CONFIGS["google_ads"]["rules"])
+
+    # Register remaining keys
     add_tool_if_exists("shopify", shopify_system_msg, "ShopifyAgent")
     add_tool_if_exists("linkedin", linkedin_system_msg, "LinkedInAgent")
     add_tool_if_exists("facebook", facebook_system_msg, "FacebookAdsAgent")
