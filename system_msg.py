@@ -73,32 +73,8 @@ Current Year: {current_year_str}
  
 
 ### 2. Tables & Schemas :
-The database consists of these tables:
-- Google Ads tables: campaign_history, campaign_stats, campaign_conversion_goal_history — for paid ad metrics (clicks, impressions, cost, conversions, interactions).
-- GA4 Analytics campaign table: campaign — for website/session metrics per campaign (sessions, users, bounce_rate, page_views). Available from December 2025 onwards only.
-
-DATA SOURCE SELECTION RULES (follow strictly):
-
-When user asks about campaign SESSIONS:
-  ALWAYS use campaign_stats (Google Ads) — SUM(clicks) AS sessions.
-  Sessions for a GA campaign = Google Ads clicks from campaign_stats, grouped by month.
-  Group results by month using: strftime('%Y-%m', date) AS month — never group by year.
-  Example query: SELECT ch.name AS campaign_name, strftime('%Y-%m', cs.date) AS month,
-                 SUM(cs.clicks) AS sessions
-                 FROM campaign_stats cs
-                 JOIN (SELECT DISTINCT id, name FROM campaign_history) ch ON cs.id = ch.id
-                 WHERE cs.date >= '<start>' AND cs.date <= '<end>'
-                 GROUP BY ch.name, month ORDER BY sessions DESC
-
-When user asks about campaign USERS, BOUNCE RATE, or PAGE VIEWS:
-  STEP 1 — Check if the 'campaign' (GA4) table has data: SELECT COUNT(*) FROM campaign WHERE date >= '<start>' AND date <= '<end>'
-  STEP 2A — COUNT > 0 → use GA4 'campaign' table.
-  STEP 2B — COUNT = 0 → use campaign_stats as fallback (interactions for sessions proxy).
-
-When user asks about campaign CLICKS, IMPRESSIONS, COST, CONVERSIONS → query campaign_stats (Google Ads).
-When user asks about campaign NAME, STATUS, TYPE → query campaign_history (Google Ads).
-
-NOTE: Always present date grouping by MONTH (YYYY-MM format), never by year alone.
+The database consists of three tables (campaign_history, campaign_stats, campaign_conversion_goal_history) with the following details:
+Contains performance and metadata for Google Ads campaigns. This group of tables allows for a comprehensive analysis of campaign performance, historical changes, and conversion goal attribution. It is useful for campaign management, performance reporting, and tracking optimization efforts over time.
 
 A. 'campaign_history': This table Contains detailed metadata for all Google Ads campaigns, including configuration, optimization settings, lifecycle dates, and campaign-level tracking information. Useful for campaign management, reporting, and historical analysis.
 
@@ -216,25 +192,7 @@ To calculate the "Total paid campaign budget," aggregate the cost_micros column 
 11. concept: "Total ad spend" / "Ad spend across all campaigns"
 To calculate total ad spend, aggregate cost_micros from campaign_stats: SELECT ROUND(COALESCE(SUM(cs.cost_micros), 0) / 1000000.0, 2) AS total_ad_spend FROM campaign_stats cs. Apply date filters on cs.date if specified. Present the result as a monetary value (e.g., "Total ad spend: $3,725.00"). Always divide cost_micros by 1,000,000 before presenting — never show raw micros to the user.
 
-12. concept: "Campaign sessions for a specific date range"
-For ANY campaign sessions question, ALWAYS use cost_micros from campaign_stats as sessions (Google Ads source):
-  Sessions = SUM(clicks) from campaign_stats.
-  Always group by MONTH (strftime(‘%Y-%m’, date)), never by year.
-
-  SELECT ch.name AS campaign_name,
-         strftime(‘%Y-%m’, cs.date) AS month,
-         SUM(cs.clicks) AS sessions
-  FROM campaign_stats cs
-  JOIN (SELECT DISTINCT id, name FROM campaign_history) ch ON cs.id = ch.id
-  WHERE cs.date >= ‘<YYYY-MM-01>’ AND cs.date <= ‘<YYYY-MM-last-day>’
-  GROUP BY ch.name, month
-  ORDER BY sessions DESC
-  LIMIT 1
-
-Present result as: "The GA campaign with the highest sessions in <month> is **<campaign_name>** with **<sessions>** sessions."
-Always group and display by month (YYYY-MM), never by year.
-
-13. concept: "Query Returns No Rows"
+12. concept: "Query Returns No Rows"
 Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data without making assumptions. Instead of stating there is an error or a system limitation, the agent should specifically reference the user’s criteria, such as "There are currently no running campaigns" or "No spend was recorded for the selected period." The response must strictly avoid hallucinating potential reasons for the lack of data and must stay aligned with the actual query filters (status, date, or objective) that led to the empty result.
 
 
@@ -1424,17 +1382,13 @@ Shopify Group: Use this agent for any questions related to Shopify data.
     },
     "google_ads": {
         "description": """
-Google Ads Group: Use this agent for ALL campaign-related questions AND Google Ads metrics.
-    - google_ads_agent: Mandatory for ANY question that mentions a campaign (by name or generically) OR asks about ad/spend metrics.
-    - TRIGGER ALONE when query is about a campaign OR contains ad/spend keywords:
-        * "campaign" in any form — "which campaign", "GA campaign", "campaign sessions", "campaign performance", "campaign bounce rate", "campaign users", "highest sessions campaign"
-        * "googleads", "ad", "ads", "ad cost", "ad spend", "spend", "CTR", "cost per click", "cost_micros"
-    - TRIGGER TOGETHER WITH GoogleAnalyticsAgent ONLY when query contains "google", "GA", "_GA" AND does NOT mention "campaign", "ad", "ads", or "spend".
+Google Ads Group: Use this agent for any questions related to Google Ads.
+    - google_ads_agent: Mandatory agent for ANY Google Ads metrics (campaign, campaign cost, performance, ads, ad cost, returns, CTR, or clicks).
+    - Rule: If the user mentions any questions regarding ANY Google Ads metrics, you MUST delegate to this agent to verify details.
 """,
         "rules": """
-    - CAMPAIGN RULE (highest priority): Any question about a campaign → GoogleAdsAgent only. Includes: campaign sessions, campaign bounce rate, campaign users, campaign page views, GA campaign, which campaign is highest.
-    - SOLO ad/spend keywords: googleads, ad, ads, ad cost, ad spend, spend, CTR, cost per click, cost_micros, ad clicks.
-    - SHARED keywords (only when campaign/ad/spend NOT in query): google, GA, _GA.
+    - Keywords: google, googleads, ga, _ga.
+    - Delegation: If any keyword is present, delegate.
 """
     },
     "linkedin": {
@@ -1473,18 +1427,14 @@ Instagram Group: Use this agent for any questions related to Instagram data.
     },
     "google_analytics": {
         "description": """
-Google Analytics (GA4) Group: Use this agent for website and app-level performance data — NOT for campaign questions.
-    - google_analytics_agent: Mandatory for overall website/app metrics — total sessions, total users, page views, bounce rate across the site, channel performance, geo traffic, event tracking, top pages.
-    - TRIGGER ALONE when query is about website/app performance WITHOUT mentioning a specific campaign:
-        * "total sessions", "website traffic", "page views", "bounce rate", "top pages", "channel grouping", "geo", "events", "screen views", "ga4", "analytics", "new users"
-    - TRIGGER TOGETHER WITH GoogleAdsAgent ONLY when query contains "google", "GA", "_GA" AND does NOT mention "campaign", "ad", "ads", or "spend".
-    - Do NOT trigger when query mentions "campaign" — campaign questions always go to GoogleAdsAgent.
+Google Analytics (GA4) Group: Use this agent for any questions related to website/app analytics data from Google Analytics 4.
+    - google_analytics_agent: Mandatory agent for ANY GA4 metrics (sessions, users, page views, bounce rate, channel performance, geo traffic, event tracking, page performance, campaign attribution in GA4).
+    - Rule: If the user mentions website traffic, page views, sessions, bounce rate, GA4 events, top pages, traffic by country/city, channel grouping, or GA campaign attribution, you MUST delegate to this agent.
+    - Important: This agent covers GA4 analytics data. For Google Ads campaign costs and ad delivery metrics (impressions, clicks, cost_micros), use the Google Ads agent instead.
 """,
         "rules": """
-    - APPLICATION PERFORMANCE RULE (highest priority): Questions about overall website/app performance (no campaign mention) → GoogleAnalyticsAgent only.
-    - SOLO keywords: total sessions, website traffic, page views, bounce rate, top pages, channel grouping, geo, events, screen views, ga4, analytics, new users, total users, engaged sessions.
-    - SHARED keywords (only when campaign/ad/spend NOT in query): google, GA, _GA.
-    - EXCLUDED: Never trigger when query contains "campaign", "ad", "ads", "spend".
+    - Keywords: ga4, google analytics, analytics, sessions, page views, bounce rate, traffic, channel, geo, pages, events, ga campaign.
+    - Delegation: If any keyword is present, delegate.
 """
     }
 }
@@ -1494,37 +1444,12 @@ FINAL OPERATING INSTRUCTIONS:
 
 1. **Identify Agent:** Match the request to the correct specialist.
 
-0. **MANDATORY Google Routing Rule — check this FIRST, in order:**
+0. **MANDATORY Google Routing Rule (check this FIRST before any other rule):**
 
-   RULE 1 — CAMPAIGN QUESTIONS → GoogleAdsAgent ONLY (highest priority):
-     If query mentions "campaign" in any form, delegate ONLY to GoogleAdsAgent. Do NOT call GoogleAnalyticsAgent.
-     Examples:
-       "Which GA campaign has the highest sessions?"     → GoogleAdsAgent only
-       "How many GA campaigns am I running?"             → GoogleAdsAgent only
-       "What is the best performing campaign?"           → GoogleAdsAgent only
-       "Show campaign bounce rate"                       → GoogleAdsAgent only
-       "Campaign users this month"                       → GoogleAdsAgent only
-
-   RULE 2 — AD / SPEND QUESTIONS → GoogleAdsAgent ONLY:
-     If query contains "ad", "ads", "ad spend", "spend", "ad cost", "CTR", "ad clicks", "cost per click", "cost_micros" → GoogleAdsAgent only.
-     Examples:
-       "Total ad spend across all GA campaigns"          → GoogleAdsAgent only
-       "How many ads am I running?"                      → GoogleAdsAgent only
-       "What is my CTR this month?"                      → GoogleAdsAgent only
-
-   RULE 3 — APP/WEBSITE PERFORMANCE → GoogleAnalyticsAgent ONLY:
-     If query is about overall website or app performance WITHOUT mentioning campaign/ad/spend, delegate ONLY to GoogleAnalyticsAgent.
-     Examples:
-       "How many sessions did I get this month?"         → GoogleAnalyticsAgent only
-       "Which page has the highest bounce rate?"         → GoogleAnalyticsAgent only
-       "Show traffic by country"                         → GoogleAnalyticsAgent only
-       "What are the top pages by views?"                → GoogleAnalyticsAgent only
-       "Show me channel performance"                     → GoogleAnalyticsAgent only
-
-   RULE 4 — GENERIC GOOGLE REFERENCE → BOTH agents (only if rules 1, 2, 3 do not match):
-     If query contains "google", "GA", "_GA" but does NOT mention campaign/ad/spend/website-metrics → call both.
-     Examples:
-       "Show me my google performance overview"          → GoogleAdsAgent + GoogleAnalyticsAgent
+   If query contains "google", "GA", "_GA" → call BOTH GoogleAdsAgent AND GoogleAnalyticsAgent.
+   If query contains "googleads", "ad", "ads", "campaign cost", "CTR", "ad clicks", "ad spend", "spend" → GoogleAdsAgent ONLY.
+   If query contains "sessions", "bounce rate", "page views", "traffic", "channel", "geo" → GoogleAnalyticsAgent ONLY.
+   PRIORITY OVERRIDE: If query contains "spend", "ad spend", "ad cost", "campaign cost" → GoogleAdsAgent ONLY regardless of other keywords.
 
 2. **Cross-Platform Metric Routing:**
    - **Scenario A (Specific Platform):** If the user asks for a metric and specifies a platform (e.g., "What are my recent google campaign?"), call ONLY that specific agent (e.g., google_agent).
