@@ -1333,7 +1333,22 @@ NEVER use LIMIT. NEVER pick a single row.
 3. concept: "Currently running campaigns"
 To identify currently running campaigns, query the campaign table and find distinct first_user_campaign_name values present on the most recent available date. Use a subquery: SELECT MAX(date) FROM campaign to anchor the most recent date. Filter WHERE date = (SELECT MAX(date) FROM campaign) AND first_user_campaign_name NOT IN ('(direct)', '(not set)', '(referral)', '') AND first_user_campaign_name IS NOT NULL. Select DISTINCT first_user_campaign_name AS campaign_name and hardcode 'google_analytics' AS platform. If no rows are returned, state 'There are no currently running GA campaigns'.
 
-4. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
+4. concept: "Traffic drivers" / "What's driving traffic" / "Top traffic sources" / "driving traffic"
+MANDATORY: When user asks what is driving traffic, what are top traffic sources, or what is generating traffic — you MUST query the 'campaign' table (NOT demochannel table). Group by first_user_campaign_name and show sessions + users. ALWAYS include actual numbers in the response — never just names.
+  SELECT first_user_campaign_name AS source,
+         COALESCE(SUM(sessions), 0) AS sessions,
+         COALESCE(SUM(total_users), 0) AS users
+  FROM campaign
+  WHERE date >= '<start>' AND date <= '<end>'
+    AND first_user_campaign_name IS NOT NULL
+  GROUP BY first_user_campaign_name
+  ORDER BY sessions DESC
+"this week" date filter: date >= date('now', '-6 days') AND date <= date('now')
+"yesterday" date filter: date = date('now', '-1 day')
+Present as ranked list with numbers: "1. **(direct)** — 27 sessions, 26 users  2. **(organic)** — 13 sessions, 13 users ..."
+DO NOT use the demochannel table for this question type.
+
+5. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
 To evaluate campaign performance or find the top/highest campaign by any metric, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name.
 IMPORTANT: Do NOT filter out any campaign names — include ALL values such as '(direct)', '(not set)', '(referral)', '(organic)', '(cross-network)' etc. These are valid GA4 attribution labels and must be included in results. Only filter out NULL values: WHERE first_user_campaign_name IS NOT NULL. Apply date filters on the date column using boundary-based string comparisons. Sort by the requested metric DESC to find the highest/top campaign.
 
@@ -1343,8 +1358,9 @@ To find top pages, query the pages table or adslot table. Aggregate COALESCE(SUM
 6. concept: "Traffic by country or city"
 To break down traffic by geography, query the geo table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions, COALESCE(SUM(total_users), 0) AS total_users. Group by country for country-level or by city for city-level. Filter out '(not set)' values: WHERE country <> '(not set)'. Apply date filters on the date column.
 
-7. concept: "Channel performance"
-To analyze traffic by channel, query the demochannel table. Aggregate COALESCE(SUM(sessions), 0) AS sessions, COALESCE(SUM(total_users), 0) AS total_users, COALESCE(SUM(transactions), 0) AS transactions. Group by first_user_default_channel_group. Filter out '(not set)' values. Sort by sessions DESC.
+7. concept: "Channel performance" / "channel grouping" / "which channel"
+Use demochannel table ONLY when user explicitly asks about channel groupings (Organic Search, Paid Social, Direct, Referral, etc.). Do NOT use for "what's driving traffic" or "top traffic sources" — those use the campaign table (concept 4).
+Query: SELECT first_user_default_channel_group, COALESCE(SUM(sessions),0) AS sessions, COALESCE(SUM(total_users),0) AS users FROM demochannel WHERE date >= '<start>' AND date <= '<end>' AND first_user_default_channel_group IS NOT NULL GROUP BY first_user_default_channel_group ORDER BY sessions DESC.
 
 8. concept: "Event tracking / event count"
 To analyze events, query the categorylabel table. Aggregate COALESCE(SUM(event_count), 0) AS total_events and COALESCE(SUM(event_value), 0) AS total_event_value. Group by event_name. Filter specific events using WHERE event_name = '<event_name>'. Apply date filters on the date column.
