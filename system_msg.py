@@ -1380,22 +1380,25 @@ To evaluate campaign performance or find the top/highest campaign by any metric,
 IMPORTANT: Do NOT filter out any campaign names — include ALL values such as '(direct)', '(not set)', '(referral)', '(organic)', '(cross-network)' etc. These are valid GA4 attribution labels and must be included in results. Only filter out NULL values: WHERE first_user_campaign_name IS NOT NULL. Apply date filters on the date column using boundary-based string comparisons. Sort by the requested metric DESC to find the highest/top campaign.
 
 5. concept: "Top pages by traffic" / "most engaging pages" / "most visited pages" / "engaging pages"
-Query the pages table. ALWAYS display unified_screen_name (the human-readable page title) as the page name — NOT the URL path.
-Use COALESCE(unified_screen_name, unified_page_path_screen) to fall back to path only if screen name is null/empty.
+Query the pages table. ALWAYS display unified_screen_name (the human-readable page title) — NOT the URL path.
+Use COALESCE(NULLIF(unified_screen_name, ''), unified_page_path_screen) to fall back to path only if screen name is null/empty.
+PRIMARY metric = SUM(sessions) — this matches what the dashboard shows as "Sessions".
   SELECT COALESCE(NULLIF(unified_screen_name, ''), unified_page_path_screen) AS page_name,
-         COALESCE(SUM(sessions), 0)            AS sessions,
-         COALESCE(SUM(engaged_sessions), 0)    AS engaged_sessions,
-         COALESCE(SUM(screen_page_views), 0)   AS page_views,
-         COALESCE(AVG(average_session_duration), 0) AS avg_duration_seconds
+         COALESCE(SUM(sessions), 0)                    AS sessions,
+         COALESCE(SUM(total_users), 0)                 AS total_users,
+         COALESCE(SUM(new_users), 0)                   AS new_users,
+         COALESCE(SUM(screen_page_views), 0)           AS page_views,
+         ROUND(AVG(bounce_rate) * 100, 2)              AS bounce_rate_pct,
+         ROUND(AVG(average_session_duration), 0)       AS avg_duration_sec
   FROM pages
-  WHERE date >= '<start>' AND date <= '<end>'
-    AND (unified_screen_name IS NOT NULL OR unified_page_path_screen IS NOT NULL)
+  WHERE (unified_screen_name IS NOT NULL OR unified_page_path_screen IS NOT NULL)
   GROUP BY page_name
-  ORDER BY engaged_sessions DESC
+  ORDER BY sessions DESC
   LIMIT 10
-Apply date filters; omit if no date specified (show all-time top pages).
-Present as readable list: "1. **Natural Air Roasted Plain Cashews** — 156 engaged sessions, 403 views"
-NEVER show raw URL paths like /products/natural-air-roasted-plain-cashewsjumbo — use the page title instead.
+Apply date filters when specified; omit WHERE date clause if no date mentioned (show all-time).
+Present as readable list with all key metrics:
+"1. **Buy Organic, Premium Quality Roasted Cashews** — 3,296 sessions, 3,195 users, 6,878 views, 16.9% bounce rate"
+NEVER show raw URL paths — use page title only.
 
 6. concept: "Traffic by country or city"
 To break down traffic by geography, query the geo table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions, COALESCE(SUM(total_users), 0) AS total_users. Group by country for country-level or by city for city-level. Filter out '(not set)' values: WHERE country <> '(not set)'. Apply date filters on the date column.
