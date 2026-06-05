@@ -6,14 +6,21 @@ SHARED_AGENT_RULES = """
 GLOBAL BUSINESS DEFINITIONS & LOGIC (STRICTLY FOLLOW):
 
 1. Context-Only History Usage
-- Use chat history only to identify the subject or context when the current user question depends on a previous user question and ai assistant answer or response.
-- This includes user questions and assistant responses, but only for resolving what is being referred to.
-- Example:
-   Previous user question: “What GA campaign type was I running recently in 2025?”
-   Assistant response: “Recent campaign type is PERFORMANCE_MAX.” 
-   Current user new question: “How did that campaign performed?”
-   So here, you must have to use recent history mssgs from user and assistant to resolve that "that campaign" refers to "recent PERFORMANCE_MAX campaign".
-   So current new user question should be restructured as: “How did the recent PERFORMANCE_MAX campaign performed?”
+- Use chat history to identify the subject, platform, and time period when the current user question is a follow-up or vague reference.
+- This includes resolving pronouns (“that”, “it”, “they”), vague follow-ups (“each”, “list”, “breakdown”, “more details”, “show more”), and implied platform/time context.
+- CRITICAL: When the user sends a short follow-up like “list for each”, “break it down”, “show more”, “what about each one”, “details” — look at the previous question and answer to determine WHAT they are asking about and from WHICH PLATFORM. Inherit that platform and time period.
+- NEVER treat a follow-up as a brand new unrelated question. Always inherit platform, subject, and time period from history.
+- Examples:
+   Previous: “What are my top GA marketing channels this month?”
+   Response: “1. Direct  2. Organic Search  3. Referral ...”
+   Follow-up: “list for each channel”
+   → Restructure as: “Show sessions and users for each GA marketing channel this month”
+   → Route to GoogleAnalyticsAgent ONLY. Query demochannel table.
+
+   Previous: “What GA campaign type was I running recently in 2025?”
+   Response: “Recent campaign type is PERFORMANCE_MAX.”
+   Follow-up: “How did that campaign perform?”
+   → Restructure as: “How did the recent PERFORMANCE_MAX GA campaign perform?”
 
 2. Mandatory Fresh Query Execution
 - For every user question, generate and execute a new SQL query, even if the same or a related question was asked earlier.
@@ -1358,9 +1365,20 @@ To find top pages, query the pages table or adslot table. Aggregate COALESCE(SUM
 6. concept: "Traffic by country or city"
 To break down traffic by geography, query the geo table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions, COALESCE(SUM(total_users), 0) AS total_users. Group by country for country-level or by city for city-level. Filter out '(not set)' values: WHERE country <> '(not set)'. Apply date filters on the date column.
 
-7. concept: "Channel performance" / "channel grouping" / "which channel"
-Use demochannel table ONLY when user explicitly asks about channel groupings (Organic Search, Paid Social, Direct, Referral, etc.). Do NOT use for "what's driving traffic" or "top traffic sources" — those use the campaign table (concept 4).
-Query: SELECT first_user_default_channel_group, COALESCE(SUM(sessions),0) AS sessions, COALESCE(SUM(total_users),0) AS users FROM demochannel WHERE date >= '<start>' AND date <= '<end>' AND first_user_default_channel_group IS NOT NULL GROUP BY first_user_default_channel_group ORDER BY sessions DESC.
+7. concept: "Channel performance" / "marketing channels" / "channel grouping" / "list for each channel"
+Use demochannel table when user asks about GA marketing channels, channel groupings, or follow-up questions about channels listed in a previous response.
+ALWAYS include actual numbers (sessions, users) — NEVER return just channel names.
+  SELECT first_user_default_channel_group AS channel,
+         COALESCE(SUM(sessions), 0) AS sessions,
+         COALESCE(SUM(total_users), 0) AS users,
+         COALESCE(SUM(new_users), 0) AS new_users
+  FROM demochannel
+  WHERE date >= '<start>' AND date <= '<end>'
+    AND first_user_default_channel_group IS NOT NULL
+  GROUP BY first_user_default_channel_group
+  ORDER BY sessions DESC
+Present as ranked list: "1. **Direct** — 27 sessions, 25 users  2. **Organic Search** — 13 sessions ..."
+Do NOT use for "what's driving traffic" questions — those use campaign table (concept 4).
 
 8. concept: "Event tracking / event count"
 To analyze events, query the categorylabel table. Aggregate COALESCE(SUM(event_count), 0) AS total_events and COALESCE(SUM(event_value), 0) AS total_event_value. Group by event_name. Filter specific events using WHERE event_name = '<event_name>'. Apply date filters on the date column.
@@ -1389,14 +1407,21 @@ Current Year: {current_year_str}
 ### PROTOCOL FOR HANDLING DATA & HISTORY (STRICT ENFORCEMENT)
 
 1. Context-Only History Usage
-- Use chat history only to identify the subject or context when the current user question depends on a previous user question and ai assistant answer or response.
-- This includes user questions and assistant responses, but only for resolving what is being referred to.
-- Example:
-   Previous user question: “What GA campaign type was I running recently in 2025?”
-   Assistant response: “Recent campaign type is PERFORMANCE_MAX.” 
-   Current user new question: “How did that campaign performed?”
-   So here, you must have to use recent history mssgs from user and assistant to resolve that "that campaign" refers to "recent PERFORMANCE_MAX campaign".
-   So current new user question should be restructured as: “How did the recent PERFORMANCE_MAX campaign performed?”
+- Use chat history to identify the subject, platform, and time period when the current user question is a follow-up or vague reference.
+- This includes resolving pronouns (“that”, “it”, “they”), vague follow-ups (“each”, “list”, “breakdown”, “more details”, “show more”), and implied platform/time context.
+- CRITICAL: When the user sends a short follow-up like “list for each”, “break it down”, “show more”, “what about each one”, “details” — look at the previous question and answer to determine WHAT they are asking about and from WHICH PLATFORM. Inherit that platform and time period.
+- NEVER treat a follow-up as a brand new unrelated question. Always inherit platform, subject, and time period from history.
+- Examples:
+   Previous: “What are my top GA marketing channels this month?”
+   Response: “1. Direct  2. Organic Search  3. Referral ...”
+   Follow-up: “list for each channel”
+   → Restructure as: “Show sessions and users for each GA marketing channel this month”
+   → Route to GoogleAnalyticsAgent ONLY. Query demochannel table.
+
+   Previous: “What GA campaign type was I running recently in 2025?”
+   Response: “Recent campaign type is PERFORMANCE_MAX.”
+   Follow-up: “How did that campaign perform?”
+   → Restructure as: “How did the recent PERFORMANCE_MAX GA campaign perform?”
 
 
 Below are the ONLY Agents you can route to:
