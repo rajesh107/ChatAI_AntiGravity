@@ -399,6 +399,61 @@ TABLE_CONFIGS = {
             "bounce_rate": DECIMAL(10, 6),
             "average_session_duration": DECIMAL(15, 6)
         }
+    },
+
+    # ==========================================
+    # --- GOOGLE ANALYTICS (GA4) DEVICE ---
+    # ==========================================
+    "tech_device_category_report": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["engagement_rate", "key_events"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "total_users": BigInteger,
+            "new_users": BigInteger,
+            "engaged_sessions": BigInteger,
+            "event_count": BigInteger,
+            "total_revenue": BigInteger,
+            "engagement_rate": DECIMAL(10, 6),
+            "key_events": DECIMAL(10, 2)
+        }
+    },
+    "tech_device_model_report": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["engagement_rate", "key_events"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "total_users": BigInteger,
+            "new_users": BigInteger,
+            "engaged_sessions": BigInteger,
+            "event_count": BigInteger,
+            "total_revenue": BigInteger,
+            "engagement_rate": DECIMAL(10, 6),
+            "key_events": DECIMAL(10, 2)
+        }
+    },
+    "tech_platform_device_category_report": {
+        "dates": ["date", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["engagement_rate", "key_events"],
+        "sql_types": {
+            "date": Date,
+            "property": String(256),
+            "_fivetran_id": String(256),
+            "total_users": BigInteger,
+            "new_users": BigInteger,
+            "engaged_sessions": BigInteger,
+            "event_count": BigInteger,
+            "total_revenue": BigInteger,
+            "engagement_rate": DECIMAL(10, 6),
+            "key_events": DECIMAL(10, 2)
+        }
     }
 }
 

@@ -171,7 +171,10 @@ database_structure = {
             "categorylabel.csv",
             "adslot.csv",
             "demochannel.csv",
-            "pages.csv"
+            "pages.csv",
+            "tech_device_category_report.csv",
+            "tech_device_model_report.csv",
+            "tech_platform_device_category_report.csv"
         ]
     }
 }

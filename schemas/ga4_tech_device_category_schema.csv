@@ -1,0 +1,13 @@
+column_name,data_type,description
+date,date,Report date (YYYY-MM-DD). Primary time dimension for device-level analysis.
+property,varchar(256),GA4 property ID (e.g. properties/297809897). Identifies the GA4 account.
+_fivetran_id,varchar(256),Fivetran-generated unique hash ID for the row. Used for deduplication.
+device_category,longtext,Device category of the user: desktop / mobile / tablet. Primary dimension for device segmentation.
+key_events,double,Number of key/conversion events (goal completions) recorded on this device category.
+total_users,bigint,Total number of users (new + returning) who used this device category.
+event_count,bigint,Total number of all GA4 events fired on this device category.
+new_users,bigint,Number of first-time users on this device category.
+engagement_rate,double,Ratio of engaged sessions to total sessions (0.0–1.0). Multiply by 100 for percentage. Higher = more engaging.
+engaged_sessions,bigint,Number of sessions lasting 10+ seconds or with a conversion or 2+ page views on this device.
+_fivetran_synced,timestamp(6),Timestamp when Fivetran last synced this row from the source.
+total_revenue,bigint,Total revenue attributed to sessions on this device category (in account currency).
