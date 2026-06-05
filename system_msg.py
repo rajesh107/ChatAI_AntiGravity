@@ -1428,7 +1428,38 @@ When asked about bounce rate, use COALESCE(AVG(bounce_rate), 0) * 100 AS bounce_
 To calculate ad spend from GA4, query: SELECT COALESCE(SUM(advertiser_ad_cost), 0) AS total_ad_spend FROM campaign WHERE advertiser_ad_cost > 0. Apply date filters if specified.
 IMPORTANT: If the result is 0 or no rows are returned, respond ONLY with: "Google Analytics does not have advertiser ad cost data available." Do NOT say "no GA campaigns with recorded ad spend" or suggest the data might exist elsewhere. Ad spend data primarily lives in Google Ads — if GA4 shows zero, simply state that GA4 has no cost data.
 
-9. concept: "Query Returns No Rows"
+11. concept: "Device performance" / "by device" / "device breakdown" / "engagement by device" / "device category" / "device model"
+Use the tech_device_category_report table for device category breakdown (desktop / mobile / tablet).
+Use the tech_device_model_report table for specific device model breakdown.
+Use the tech_platform_device_category_report table when platform (web/app) AND device are both needed.
+
+Fields available in tech_device_category_report:
+- date: date — report date
+- device_category: longtext — device type: desktop, mobile, tablet
+- total_users: bigint — total users on that device
+- new_users: bigint — first-time users on that device
+- engaged_sessions: bigint — sessions with meaningful engagement
+- engagement_rate: double — ratio of engaged sessions (0.0–1.0); multiply by 100 for percentage
+- event_count: bigint — total events fired on that device
+- key_events: double — goal/conversion events on that device
+- total_revenue: bigint — revenue attributed to that device
+
+NOTE: average_session_duration is NOT in this table. For "average engagement time by device" use engagement_rate as the engagement metric.
+
+Query for device category breakdown:
+  SELECT device_category,
+         COALESCE(SUM(total_users), 0)                   AS total_users,
+         COALESCE(SUM(engaged_sessions), 0)              AS engaged_sessions,
+         ROUND(AVG(engagement_rate) * 100, 2)            AS engagement_rate_pct,
+         COALESCE(SUM(event_count), 0)                   AS event_count
+  FROM tech_device_category_report
+  WHERE date >= '<start>' AND date <= '<end>'
+  GROUP BY device_category
+  ORDER BY engaged_sessions DESC
+Apply date filters when specified; omit for all-time data.
+Present as: "Desktop — 72 users, 46 engaged sessions, 58.2% engagement rate"
+
+12. concept: "Query Returns No Rows"
 Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data without making assumptions. Reference the user's criteria specifically (e.g., 'There are no GA campaigns found for the selected period'). The response must strictly avoid hallucinating potential reasons for the lack of data.
 
 """
@@ -1532,7 +1563,7 @@ Google Analytics (GA4) Group: Use this agent for any questions related to websit
     - Important: This agent covers GA4 analytics data. For Google Ads campaign costs and ad delivery metrics (impressions, clicks, cost_micros), use the Google Ads agent instead.
 """,
         "rules": """
-    - Keywords: ga4, google analytics, analytics, sessions, page views, bounce rate, traffic, channel, geo, pages, events, ga campaign.
+    - Keywords: ga4, google analytics, analytics, sessions, page views, bounce rate, traffic, channel, geo, pages, events, ga campaign, device, device category, device model, by device, engagement by device.
     - Delegation: If any keyword is present, delegate.
 """
     }

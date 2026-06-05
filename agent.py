@@ -143,7 +143,10 @@ TABLE_GROUPS = {
         "categorylabel",
         "adslot",
         "demochannel",
-        "pages"
+        "pages",
+        "tech_device_category_report",
+        "tech_device_model_report",
+        "tech_platform_device_category_report"
     ]
 }
 
