@@ -133,7 +133,7 @@ def get_active_databases(username: str) -> Dict[str, List[str]]:
                 SELECT type, schema_name
                 FROM fivetran_connections
                 WHERE user_id = :username
-                  AND type IN ('FBADS', 'GOOGLEADS', 'INSTA', 'LINKEDINADS','LINKEDIN','GA', 'SHOPIFY')
+                  AND type IN ('FBADS', 'FB', 'GOOGLEADS', 'INSTA', 'LINKEDINADS','LINKEDIN','GA', 'SHOPIFY')
                   AND status = 1
             """)
             result = conn.execute(sql, {"username": username})
