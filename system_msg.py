@@ -1355,7 +1355,27 @@ MANDATORY: When user asks what is driving traffic, what are top traffic sources,
 Present as ranked list with numbers: "1. **(direct)** — 27 sessions, 26 users  2. **(organic)** — 13 sessions, 13 users ..."
 DO NOT use the demochannel table for this question type.
 
-5. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
+5. concept: "Converting users" / "most converting" / "conversions" / "converted users"
+The campaign table in this schema does NOT have a transactions column. For "converting users" or "most converting source":
+  STEP 1 — Check if the campaign table has a 'transactions' column by inspecting available columns.
+  STEP 2A — If 'transactions' column EXISTS: use SUM(transactions) ORDER BY transactions DESC, then total_users DESC.
+  STEP 2B — If 'transactions' column does NOT exist: use SUM(active_users) as the converting users proxy (active_users = users with engaged sessions).
+  Query for STEP 2B:
+    SELECT first_user_campaign_name AS source,
+           COALESCE(SUM(active_users), 0) AS converting_users,
+           COALESCE(SUM(total_users), 0)  AS total_users,
+           COALESCE(SUM(sessions), 0)     AS sessions
+    FROM campaign
+    WHERE date >= '<start>' AND date <= '<end>'
+      AND first_user_campaign_name IS NOT NULL
+    GROUP BY first_user_campaign_name
+    ORDER BY converting_users DESC, sessions DESC
+    LIMIT 5
+  Always state which metric was used: "GA4 transactions data is not available for this account. Based on active users (engaged sessions): ..."
+  "Last week" date filter: date >= date('now', '-7 days') AND date <= date('now', '-1 day')
+  NEVER return different results for the same query — always ORDER BY converting_users DESC, sessions DESC deterministically.
+
+6. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
 To evaluate campaign performance or find the top/highest campaign by any metric, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name.
 IMPORTANT: Do NOT filter out any campaign names — include ALL values such as '(direct)', '(not set)', '(referral)', '(organic)', '(cross-network)' etc. These are valid GA4 attribution labels and must be included in results. Only filter out NULL values: WHERE first_user_campaign_name IS NOT NULL. Apply date filters on the date column using boundary-based string comparisons. Sort by the requested metric DESC to find the highest/top campaign.
 
