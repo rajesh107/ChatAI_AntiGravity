@@ -1310,29 +1310,49 @@ All six tables share the 'date' and 'property' columns. When joining across tabl
 
 ### 4. Domain-Specific Query Logic Instructions :
 
-1. concept: "Currently running campaigns"
+1. concept: "Users / Total users / New users / Active users"
+When user asks about users (total, new, active) for ANY time period, ALWAYS aggregate using SUM() across ALL rows for that date range. The campaign table has MULTIPLE rows per date (one per campaign attribution) — you MUST sum them all.
+Correct query:
+  SELECT COALESCE(SUM(total_users), 0) AS total_users,
+         COALESCE(SUM(new_users), 0)   AS new_users,
+         COALESCE(SUM(active_users), 0) AS active_users
+  FROM campaign
+  WHERE date = '<YYYY-MM-DD>'
+For "yesterday": WHERE date = date('now', '-1 day')
+For "today": WHERE date = date('now')
+For "this month": WHERE date >= date('now', 'start of month') AND date <= date('now')
+NEVER use LIMIT on aggregate user queries. NEVER pick a single row — always SUM all rows for the period.
+Present as: "Total users: X, New users: Y"
+
+2. concept: "Sessions / Total sessions"
+When user asks about sessions for ANY time period, ALWAYS aggregate using SUM() across ALL rows.
+  SELECT COALESCE(SUM(sessions), 0) AS total_sessions FROM campaign WHERE date = '<YYYY-MM-DD>'
+For "yesterday": WHERE date = date('now', '-1 day')
+NEVER use LIMIT. NEVER pick a single row.
+
+3. concept: "Currently running campaigns"
 To identify currently running campaigns, query the campaign table and find distinct first_user_campaign_name values present on the most recent available date. Use a subquery: SELECT MAX(date) FROM campaign to anchor the most recent date. Filter WHERE date = (SELECT MAX(date) FROM campaign) AND first_user_campaign_name NOT IN ('(direct)', '(not set)', '(referral)', '') AND first_user_campaign_name IS NOT NULL. Select DISTINCT first_user_campaign_name AS campaign_name and hardcode 'google_analytics' AS platform. If no rows are returned, state 'There are no currently running GA campaigns'.
 
-2. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
+4. concept: "Campaign performance" / "Highest sessions" / "Top campaign"
 To evaluate campaign performance or find the top/highest campaign by any metric, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name.
 IMPORTANT: Do NOT filter out any campaign names — include ALL values such as '(direct)', '(not set)', '(referral)', '(organic)', '(cross-network)' etc. These are valid GA4 attribution labels and must be included in results. Only filter out NULL values: WHERE first_user_campaign_name IS NOT NULL. Apply date filters on the date column using boundary-based string comparisons. Sort by the requested metric DESC to find the highest/top campaign.
 
-3. concept: "Top pages by traffic"
+5. concept: "Top pages by traffic"
 To find top pages, query the pages table or adslot table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions and COALESCE(SUM(screen_page_views), 0) AS total_views. Group by unified_page_path_screen (pages table) or page_path_plus_query_string (adslot table). Apply date filters on the date column. Sort by total_sessions DESC.
 
-4. concept: "Traffic by country or city"
+6. concept: "Traffic by country or city"
 To break down traffic by geography, query the geo table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions, COALESCE(SUM(total_users), 0) AS total_users. Group by country for country-level or by city for city-level. Filter out '(not set)' values: WHERE country <> '(not set)'. Apply date filters on the date column.
 
-5. concept: "Channel performance"
+7. concept: "Channel performance"
 To analyze traffic by channel, query the demochannel table. Aggregate COALESCE(SUM(sessions), 0) AS sessions, COALESCE(SUM(total_users), 0) AS total_users, COALESCE(SUM(transactions), 0) AS transactions. Group by first_user_default_channel_group. Filter out '(not set)' values. Sort by sessions DESC.
 
-6. concept: "Event tracking / event count"
+8. concept: "Event tracking / event count"
 To analyze events, query the categorylabel table. Aggregate COALESCE(SUM(event_count), 0) AS total_events and COALESCE(SUM(event_value), 0) AS total_event_value. Group by event_name. Filter specific events using WHERE event_name = '<event_name>'. Apply date filters on the date column.
 
-7. concept: "Bounce rate analysis"
+9. concept: "Bounce rate analysis"
 When asked about bounce rate, use COALESCE(AVG(bounce_rate), 0) * 100 AS bounce_rate_pct to express it as a percentage. Apply this to the relevant table depending on the dimension asked (by campaign → campaign table, by page → pages or adslot table, by channel → demochannel table, by geo → geo table).
 
-8. concept: "Ad spend or advertiser cost"
+10. concept: "Ad spend or advertiser cost"
 To calculate ad spend from GA4, query: SELECT COALESCE(SUM(advertiser_ad_cost), 0) AS total_ad_spend FROM campaign WHERE advertiser_ad_cost > 0. Apply date filters if specified.
 IMPORTANT: If the result is 0 or no rows are returned, respond ONLY with: "Google Analytics does not have advertiser ad cost data available." Do NOT say "no GA campaigns with recorded ad spend" or suggest the data might exist elsewhere. Ad spend data primarily lives in Google Ads — if GA4 shows zero, simply state that GA4 has no cost data.
 
