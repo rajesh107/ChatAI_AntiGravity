@@ -1,0 +1,66 @@
+column_name,data_type,description
+_fivetran_id,varchar(256),"Fivetran-generated unique hash ID. Primary key, used for deduplication."
+day,timestamp(6),Date of the page statistic record (YYYY-MM-DD). Primary time dimension.
+careers_page_promo_links_clicks,int,Clicks on promotional links in the Careers page section this day.
+careers_page_banner_promo_clicks,int,Clicks on banner promotions in the Careers page section this day.
+careers_page_jobs_clicks,int,Clicks on job listings within the Careers page section this day.
+careers_page_employees_clicks,int,Clicks on employee profiles shown in the Careers page section this day.
+mobile_careers_page_promo_links_clicks,int,Mobile clicks on promotional links in the Careers page section this day.
+mobile_careers_page_jobs_clicks,int,Mobile clicks on job listings in the Careers page section this day.
+mobile_careers_page_employees_clicks,int,Mobile clicks on employee profiles in the Careers page section this day.
+all_desktop_page_views,int,Total desktop page views across all page sections this day.
+all_desktop_unique_page_views,int,Unique desktop page views across all sections this day (one per visitor per session).
+all_mobile_page_views,int,Total mobile page views across all page sections this day.
+all_mobile_unique_page_views,int,Unique mobile page views across all sections this day.
+all_page_views,int,Total page views (desktop + mobile) across ALL sections this day. Primary total page views metric.
+all_unique_page_views,int,Total unique page views (desktop + mobile) across all sections this day.
+about_page_views,int,Total page views of the About section (company description and details) this day.
+about_unique_page_views,int,Unique page views of the About section this day.
+careers_page_views,int,Total page views of the Careers section (job openings and culture) this day.
+careers_unique_page_views,int,Unique page views of the Careers section this day.
+products_page_views,int,Total page views of the Products section this day.
+products_unique_page_views,int,Unique page views of the Products section this day.
+jobs_page_views,int,Total page views of the Jobs tab showing open positions this day.
+jobs_unique_page_views,int,Unique page views of the Jobs tab this day.
+people_page_views,int,Total page views of the People section (employee directory) this day.
+people_unique_page_views,int,Unique page views of the People section this day.
+overview_page_views,int,"Total page views of the Overview (Home) section, the default landing section, this day."
+overview_unique_page_views,int,Unique page views of the Overview section this day.
+life_at_page_views,int,Total page views of the Life At section (workplace culture content) this day.
+life_at_unique_page_views,int,Unique page views of the Life At section this day.
+insights_page_views,int,Total page views of the Insights section this day.
+insights_unique_page_views,int,Unique page views of the Insights section this day.
+mobile_careers_page_views,int,Mobile-specific page views of the Careers section this day.
+mobile_careers_unique_page_views,int,Unique mobile page views of the Careers section this day.
+mobile_overview_page_views,int,Mobile-specific page views of the Overview section this day.
+mobile_overview_unique_page_views,int,Unique mobile page views of the Overview section this day.
+mobile_jobs_page_views,int,Mobile-specific page views of the Jobs section this day.
+mobile_jobs_unique_page_views,int,Unique mobile page views of the Jobs section this day.
+mobile_life_at_page_views,int,Mobile-specific page views of the Life At section this day.
+mobile_life_at_unique_page_views,int,Unique mobile page views of the Life At section this day.
+mobile_insights_page_views,int,Mobile-specific page views of the Insights section this day.
+mobile_insights_unique_page_views,int,Unique mobile page views of the Insights section this day.
+mobile_products_page_views,int,Mobile-specific page views of the Products section this day.
+mobile_products_unique_page_views,int,Unique mobile page views of the Products section this day.
+mobile_about_page_views,int,Mobile-specific page views of the About section this day.
+mobile_about_unique_page_views,int,Unique mobile page views of the About section this day.
+mobile_people_page_views,int,Mobile-specific page views of the People section this day.
+mobile_people_unique_page_views,int,Unique mobile page views of the People section this day.
+desktop_insights_page_views,int,Desktop-specific page views of the Insights section this day.
+desktop_insights_unique_page_views,int,Unique desktop page views of the Insights section this day.
+desktop_careers_page_views,int,Desktop-specific page views of the Careers section this day.
+desktop_careers_unique_page_views,int,Unique desktop page views of the Careers section this day.
+desktop_life_at_page_views,int,Desktop-specific page views of the Life At section this day.
+desktop_life_at_unique_page_views,int,Unique desktop page views of the Life At section this day.
+desktop_jobs_page_views,int,Desktop-specific page views of the Jobs section this day.
+desktop_jobs_unique_page_views,int,Unique desktop page views of the Jobs section this day.
+desktop_people_page_views,int,Desktop-specific page views of the People section this day.
+desktop_people_unique_page_views,int,Unique desktop page views of the People section this day.
+desktop_about_page_views,int,Desktop-specific page views of the About section this day.
+desktop_about_unique_page_views,int,Unique desktop page views of the About section this day.
+desktop_overview_page_views,int,Desktop-specific page views of the Overview section this day.
+desktop_overview_unique_page_views,int,Unique desktop page views of the Overview section this day.
+desktop_products_page_views,int,Desktop-specific page views of the Products section this day.
+desktop_products_unique_page_views,int,Unique desktop page views of the Products section this day.
+organization_entity,longtext,LinkedIn organization URN identifying the company page (e.g. urn:li:organization:65015275).
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

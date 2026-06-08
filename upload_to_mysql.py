@@ -176,6 +176,14 @@ database_structure = {
             "tech_device_model_report.csv",
             "tech_platform_device_category_report.csv"
         ]
+    },
+    "linkedin_pages_data": {
+        # LinkedIn Pages tables — table names must match exactly (no prefix)
+        "linkedin_pages": [
+            "time_bound_follower_statistic.csv",
+            "time_bound_share_statistic.csv",
+            "time_bound_page_statistic.csv"
+        ]
     }
 }
 

@@ -38,6 +38,7 @@ from etl_cleaner import clean_and_load_data, TABLE_CONFIGS
 from system_msg import (
     instagram_system_msg, facebook_system_msg, google_system_msg,
     linkedin_system_msg, shopify_system_msg, google_analytics_system_msg,
+    linkedin_pages_system_msg,
     SUPERVISOR_HEADER, SUPERVISOR_GROUP_CONFIGS, SUPERVISOR_FOOTER, SHARED_AGENT_RULES
 )
 
@@ -96,9 +97,13 @@ except Exception as e:
     redis_client_global = None
 
 # Cache Duration: 24 Hours (in seconds)
-DATA_CACHE_TTL = 86400 
+DATA_CACHE_TTL = 86400
+
+# Graph cache TTL: 1 hour — ensures fresh DB data after each Fivetran sync
+GRAPH_CACHE_TTL = 3600
 
 # --- Global Cache ---
+# Stores {user_id: (compiled_app, build_timestamp)}
 GRAPH_CACHE = {}
 ENGINE_CACHE = {}
 
@@ -147,6 +152,11 @@ TABLE_GROUPS = {
         "tech_device_category_report",
         "tech_device_model_report",
         "tech_platform_device_category_report"
+    ],
+    "linkedin_pages": [
+        "time_bound_follower_statistic",
+        "time_bound_share_statistic",
+        "time_bound_page_statistic"
     ]
 }
 
@@ -183,7 +193,7 @@ def create_merged_engine(user_id: str, db_name_list: List[str], group_key: str):
             cached_bytes = r.get(cache_key)
             if cached_bytes:
                 print(f"   ⚡ [CACHE HIT] Loading '{group_key}' data from Redis for {user_id}...")
-                data_payload = pickle.loads(cached_bytes)
+                data_payload = pickle.loads(zlib.decompress(cached_bytes))
             else:
                 print(f"   🐢 [CACHE MISS] '{group_key}' not in Redis. Fetching from MySQL...")
         except Exception as e:
@@ -286,21 +296,17 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
     # active_db_map is now Dict[str, List[str]]
     # Key: 'facebook', Value: ['fb_ajinkya_1', 'fb_ajinkya_2']
 
+    now_ts = datetime.now().timestamp()
     if user_id in GRAPH_CACHE:
-        return GRAPH_CACHE[user_id]
+        cached_app, cached_ts = GRAPH_CACHE[user_id]
+        if now_ts - cached_ts < GRAPH_CACHE_TTL:
+            return cached_app
+        del GRAPH_CACHE[user_id]
+        print(f"   ♻️ [CACHE EXPIRED] Graph cache expired for {user_id}, rebuilding...")
 
     print(f"\n⚙️ [BUILD] Building Agent Graph for User: {user_id}")
-    
+
     llm = ChatOpenAI(model="gpt-4.1", temperature=0)
-    # --- 🟢 FIX: Calculate Dates Here (Inside the function) ---
-    # This ensures dates are always fresh every time the agent runs
-    current_date = datetime.now()
-    current_date_str = current_date.strftime("%Y-%m-%d")
-    current_year_str = current_date.strftime("%Y") 
-    
-    # Calculate "Recent" (1 Month ago)
-    one_month_ago = current_date - timedelta(days=30)
-    recent_start_date_str = one_month_ago.strftime("%Y-%m-%d")
 
     # --- 1. Helper to build sub-agents ---
     def create_agent_tool(group_key, system_msg, agent_name, tool_description):
@@ -340,12 +346,13 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
             agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
             def run_agent(query: str):
+                _now = datetime.now()
                 response = agent_executor.invoke({
                     "messages": [HumanMessage(content=query)],
-                    "current_date_str": current_date_str,
-                    "current_year_str": current_year_str,
+                    "current_date_str": _now.strftime("%Y-%m-%d"),
+                    "current_year_str": _now.strftime("%Y"),
                     "SHARED_AGENT_RULES": SHARED_AGENT_RULES,
-                    "recent_start_date_str": recent_start_date_str
+                    "recent_start_date_str": (_now - timedelta(days=30)).strftime("%Y-%m-%d")
                 })
                 return response['output']
 
@@ -379,6 +386,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
     add_tool_if_exists("facebook", facebook_system_msg, "FacebookAdsAgent")
     add_tool_if_exists("instagram", instagram_system_msg, "InstagramAgent")
     add_tool_if_exists("google_analytics", google_analytics_system_msg, "GoogleAnalyticsAgent")
+    add_tool_if_exists("linkedin_pages", linkedin_pages_system_msg, "LinkedInPagesAgent")
 
     if not tools_for_supervisor:
         raise ValueError(f"No active platforms found for User '{user_id}'.")
@@ -422,13 +430,12 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
     # 3. Combine existing history with the enforcement instruction
     # We create a new list so we don't pollute the actual persistent state
         messages_for_llm = state["messages"]
+        _now = datetime.now()
 
         result = supervisor_executor.invoke({
-            "messages": messages_for_llm, 
-            "current_date_str": current_date_str,
-            "current_year_str": current_year_str,
-            # We don't need to pass current_time_str into invoke if it's not in the prompt, 
-            # but the ghost message handles the "Time" context.
+            "messages": messages_for_llm,
+            "current_date_str": _now.strftime("%Y-%m-%d"),
+            "current_year_str": _now.strftime("%Y"),
         })
     
         return {"messages": [HumanMessage(content=result["output"], name="Supervisor")]}
@@ -454,7 +461,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
         checkpointer = None
 
     app = workflow.compile(checkpointer=checkpointer)
-    GRAPH_CACHE[user_id] = app
+    GRAPH_CACHE[user_id] = (app, datetime.now().timestamp())
     return app
 
 

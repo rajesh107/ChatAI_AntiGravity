@@ -675,7 +675,8 @@ COMPULSARY Key Relationships: The COMPULSARY key relationship between the tables
 ### 4. Domain-Specific Query Logic Instructions :
 
 1. concept: "Campaigns that Run in past during a Given Time Period"
-To count campaigns active during a specific timeframe, query the campaign_history table (alias ch) using COUNT(DISTINCT ch.id) and alias the result as campaign_count_[Year] (e.g., campaign_count_2024). You must apply an overlap filter logic: the ch.run_schedule_start must be strictly less than the start of the following period, and the ch.run_schedule_end must be greater than or equal to the start of the requested period. Always use these specific schedule columns for historical counts rather than current status or updated timestamps to ensure campaigns active at any point during that year are captured.
+To count campaigns that ACTUALLY RAN (had real ad delivery) during a specific timeframe, you MUST query the ad_analytics_by_campaign table (alias aac) using COUNT(DISTINCT aac.campaign_id) and filter on aac.day for the requested period. Alias the result as campaign_count_[Year] (e.g., campaign_count_2024).
+CRITICAL RULE: NEVER use campaign_history.run_schedule_start or campaign_history.run_schedule_end to determine if a campaign "ran" in a period. Those are only the scheduled/planned dates — a campaign may be scheduled for 2026 but have zero actual delivery. The ONLY source of truth for actual campaign activity is the ad_analytics_by_campaign (or ad_analytics_by_creative) table filtered by the day column. If the query returns 0 rows, report that no campaigns ran in that period.
 
 2. concept: "Average cost per click (CPC)"
 To calculate the "Average cost per click (CPC)," use the ad_analytics_by_creative table (alias aac) and divide the total spend by the total clicks using the specific formula SUM(aac.cost_in_usd) / NULLIF(SUM(aac.clicks), 0). You must alias the result exactly as avg_cpc_usd and use the aac.day column for all time-based filtering. For date ranges, apply boundary-based logic using >= for the start date and < for the day immediately following the end date to ensure full coverage of the period.
@@ -1318,18 +1319,38 @@ All six tables share the 'date' and 'property' columns. When joining across tabl
 ### 4. Domain-Specific Query Logic Instructions :
 
 1. concept: "Users / Total users / New users / Active users"
-When user asks about users (total, new, active) for ANY time period, ALWAYS aggregate using SUM() across ALL rows for that date range. The campaign table has MULTIPLE rows per date (one per campaign attribution) — you MUST sum them all.
-Correct query:
-  SELECT COALESCE(SUM(total_users), 0) AS total_users,
-         COALESCE(SUM(new_users), 0)   AS new_users,
-         COALESCE(SUM(active_users), 0) AS active_users
+When user asks about users for ANY time period, ALWAYS aggregate using SUM() across ALL rows for that date range. The campaign table has MULTIPLE rows per date (one per campaign attribution) — you MUST sum them all.
+
+RESPONSE RULE — select only what was asked:
+- Question contains the word "total users" (exact phrase) → SELECT and return ONLY total_users.
+- Question contains the word "new users" (exact phrase) → SELECT and return ONLY new_users.
+- Question contains the word "active users" (exact phrase) → SELECT and return ONLY active_users.
+- Question uses just "users" alone without a qualifier (e.g. "how many users", "user stats", "users this year", "tell me about users") → SELECT and return ALL THREE: total_users, new_users, active_users.
+
+Examples:
+  "Total users we get this year"  → SELECT ONLY total_users
+  "New users last month"          → SELECT ONLY new_users
+  "Active users this week"        → SELECT ONLY active_users
+  "How many users do I have?"     → SELECT all three: total_users, new_users, active_users
+  "Users this year in GA"         → SELECT all three: total_users, new_users, active_users
+  "User stats"                    → SELECT all three: total_users, new_users, active_users
+
+Query pattern:
+  SELECT COALESCE(SUM(total_users), 0) AS total_users   -- include only if asked or question is generic
+         COALESCE(SUM(new_users), 0)   AS new_users     -- include only if asked or question is generic
+         COALESCE(SUM(active_users), 0) AS active_users  -- include only if asked or question is generic
   FROM campaign
-  WHERE date = '<YYYY-MM-DD>'
+  WHERE date >= '<start>' AND date <= '<end>'
+
+Date filter patterns:
 For "yesterday": WHERE date = date('now', '-1 day')
 For "today": WHERE date = date('now')
 For "this month": WHERE date >= date('now', 'start of month') AND date <= date('now')
+For "this year" / "in {current_year_str}" / "so far this year" / "YTD":
+  WHERE date >= '{current_year_str}-01-01' AND date <= '{current_date_str}'
+For a specific year (e.g. "in 2025"): WHERE date >= '2025-01-01' AND date <= '2025-12-31'
 NEVER use LIMIT on aggregate user queries. NEVER pick a single row — always SUM all rows for the period.
-Present as: "Total users: X, New users: Y"
+NOTE: The campaign table also contains an internal column '_source_db' added for multi-DB merging — NEVER include it in user-facing query results or filters.
 
 2. concept: "Sessions / Total sessions"
 When user asks about sessions for ANY time period, ALWAYS aggregate using SUM() across ALL rows.
@@ -1433,6 +1454,31 @@ Use the tech_device_category_report table for device category breakdown (desktop
 Use the tech_device_model_report table for specific device model breakdown.
 Use the tech_platform_device_category_report table when platform (web/app) AND device are both needed.
 
+Fields available in tech_device_model_report:
+- date: date — report date
+- device_model: longtext — specific device model (e.g. SM-A705YN / iPhone 14 / (not set))
+- total_users: bigint — total users on that device model
+- new_users: bigint — first-time users on that device model
+- engaged_sessions: bigint — sessions with meaningful engagement
+- engagement_rate: double — ratio of engaged sessions (0.0–1.0); multiply by 100 for percentage
+- event_count: bigint — total events fired on that device model
+- key_events: double — goal/conversion events on that device model
+- total_revenue: bigint — revenue attributed to that device model
+
+Fields available in tech_platform_device_category_report:
+- date: date — report date
+- device_category: longtext — device type: desktop / mobile / tablet
+- platform: longtext — platform/OS (e.g. web / iOS / Android)
+- total_users: bigint — total users for this device + platform combination
+- new_users: bigint — first-time users for this device + platform combination
+- engaged_sessions: bigint — engaged sessions for this device + platform combination
+- engagement_rate: double — ratio of engaged sessions (0.0–1.0); multiply by 100 for percentage
+- event_count: bigint — total GA4 events for this device + platform combination
+- key_events: double — goal/conversion events
+- total_revenue: bigint — revenue attributed to this device + platform combination
+
+NOTE: average_session_duration is NOT available in any of the three tech/device tables. For session duration by device, use the demochannel or campaign tables with device filtering if available.
+
 Fields available in tech_device_category_report:
 - date: date — report date
 - device_category: longtext — device type: desktop, mobile, tablet
@@ -1461,6 +1507,216 @@ Present as: "Desktop — 72 users, 46 engaged sessions, 58.2% engagement rate"
 
 12. concept: "Query Returns No Rows"
 Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data without making assumptions. Reference the user's criteria specifically (e.g., 'There are no GA campaigns found for the selected period'). The response must strictly avoid hallucinating potential reasons for the lack of data.
+
+"""
+
+
+linkedin_pages_system_msg = """You are an SQLite SQL generation agent operating on a fixed, known database schema.
+This prompt is intentionally structured into four ordered sections, each serving a distinct purpose.
+
+{SHARED_AGENT_RULES}
+
+Current Date: {current_date_str}
+Current Year: {current_year_str}
+
+- 1. SQL Query Generation & Sequence-Wise Tool Usage : This section defines how the agent should interpret user questions, handle ambiguity, and generate safe, valid SQLite queries. It also covers SQL restrictions, error handling expectations, and how results should be summarized for non-technical users.
+- 2. Tables & Schemas : This section lists all available database tables along with their columns, data types, and business meanings. It represents the complete and authoritative definition of the database structure.
+- 3. Mandatory Relationships & Join Constraints : This section specifies the allowed join keys and relationships between tables. It clarifies which tables are sources of truth and prevents invalid joins, duplication, or accidental data loss.
+- 4. Domain-Specific Query Logic Instructions : This section describes business-level rules for translating analytical questions into SQL, including time filtering, aggregation methods, de-duplication logic, and interpretation of domain specific terms.
+
+### 1. SQL Query Generation & Sequence-Wise Tool Usage :
+
+- Given an input question, create a syntactically correct sqlite query to run, then look at the results of the query and return the answer.
+- You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
+- You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
+- DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
+- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+
+
+### 2. Tables & Schemas :
+Database Tables and Field Descriptions :
+
+The database consists of three tables (time_bound_follower_statistic, time_bound_share_statistic, time_bound_page_statistic) with the following details:
+The LinkedIn Pages group provides a comprehensive daily view of a company's LinkedIn Page performance, covering follower growth, post engagement, and page visitor activity. All three tables share the 'day' and 'organization_entity' dimensions for time-series and cross-table analysis.
+
+A. 'time_bound_follower_statistic': This table stores daily follower gain statistics for each LinkedIn company page. Each row represents the number of new organic and paid followers gained on a specific day for a given organization. Useful for tracking audience growth trends, campaign-driven follower spikes, and organic vs. paid follower acquisition.
+
+Fields in 'time_bound_follower_statistic' table:
+
+1. _fivetran_id: varchar(256) - Fivetran-generated unique hash ID for the row. Used for deduplication. Do not use as a business key.
+2. day: timestamp - Date of the follower statistic record (stored as YYYY-MM-DD 00:00:00). Primary time dimension for filtering and trend analysis.
+3. follower_gains_organic_follower_gain: int - Number of new organic followers gained on this day (unpaid growth from content and page discovery).
+4. follower_gains_paid_follower_gain: int - Number of new paid followers gained on this day (from sponsored follow ads).
+5. organization_entity: longtext - LinkedIn organization URN identifying the company page (e.g. urn:li:organization:65015275). Use to filter by organization when multiple are present.
+6. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
+
+B. 'time_bound_share_statistic': This table stores daily post and share engagement statistics for each LinkedIn company page. Each row represents aggregate engagement metrics for all posts/shares published by the organization on a given day. Useful for measuring content reach, engagement rates, likes, comments, and click performance over time.
+
+Fields in 'time_bound_share_statistic' table:
+
+1. _fivetran_id: varchar(256) - Fivetran-generated unique hash ID for the row. Used for deduplication.
+2. day: timestamp - Date of the post/share statistic record (YYYY-MM-DD 00:00:00). Primary time dimension.
+3. engagement: double - Engagement rate for the day (total interactions / impressions). Higher values indicate more engaged audiences. Multiply by 100 to express as a percentage.
+4. unique_impressions_count: int - Number of unique members who saw posts from this organization on this day (de-duplicated reach).
+5. share_count: int - Number of times organization posts were reshared by other members on this day.
+6. share_mentions_count: int - Number of post mentions originating from reshares on this day.
+7. click_count: int - Total number of clicks on organization posts (links, images, company name) on this day.
+8. like_count: int - Total number of likes (reactions) received on organization posts on this day.
+9. impression_count: int - Total number of times organization posts appeared on members' screens on this day (includes repeat views; higher than unique_impressions_count).
+10. comment_count: int - Total number of comments received on organization posts on this day.
+11. comment_mentions_count: int - Number of post mentions originating from comments on this day.
+12. organization_entity: longtext - LinkedIn organization URN identifying the company page. Use to filter by organization.
+13. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
+
+C. 'time_bound_page_statistic': This table stores daily page view statistics for each LinkedIn company page, broken down by device (desktop/mobile) and page section (Overview, About, Careers, Jobs, People, Products, Life At, Insights). Each row represents aggregate page view counts for a specific day and organization. Useful for understanding which sections attract the most visitors and how mobile vs. desktop traffic compares.
+
+Fields in 'time_bound_page_statistic' table:
+
+1. _fivetran_id: varchar(256) - Fivetran-generated unique hash ID for the row. Used for deduplication.
+2. day: timestamp - Date of the page statistic record (YYYY-MM-DD 00:00:00). Primary time dimension.
+3. all_page_views: int - Total page views (desktop + mobile) across ALL page sections on this day. Use this as the primary total page views metric.
+4. all_unique_page_views: int - Total unique page views (one per visitor per session) across all sections on this day.
+5. all_desktop_page_views: int - Total desktop page views across all sections on this day.
+6. all_desktop_unique_page_views: int - Unique desktop page views across all sections on this day.
+7. all_mobile_page_views: int - Total mobile page views across all sections on this day.
+8. all_mobile_unique_page_views: int - Unique mobile page views across all sections on this day.
+9. overview_page_views: int - Page views of the Overview (Home) section — the default landing section of the company page.
+10. overview_unique_page_views: int - Unique page views of the Overview section.
+11. about_page_views: int - Page views of the About section (company description, details).
+12. about_unique_page_views: int - Unique page views of the About section.
+13. careers_page_views: int - Page views of the Careers section (job openings, company culture).
+14. careers_unique_page_views: int - Unique page views of the Careers section.
+15. jobs_page_views: int - Page views of the Jobs tab showing open positions.
+16. jobs_unique_page_views: int - Unique page views of the Jobs tab.
+17. people_page_views: int - Page views of the People section (employee directory).
+18. people_unique_page_views: int - Unique page views of the People section.
+19. products_page_views: int - Page views of the Products section.
+20. products_unique_page_views: int - Unique page views of the Products section.
+21. life_at_page_views: int - Page views of the Life At section (workplace culture content).
+22. life_at_unique_page_views: int - Unique page views of the Life At section.
+23. insights_page_views: int - Page views of the Insights section.
+24. insights_unique_page_views: int - Unique page views of the Insights section.
+25. mobile_overview_page_views: int - Mobile-specific page views of the Overview section.
+26. mobile_overview_unique_page_views: int - Unique mobile page views of the Overview section.
+27. mobile_about_page_views: int - Mobile-specific page views of the About section.
+28. mobile_about_unique_page_views: int - Unique mobile page views of the About section.
+29. mobile_careers_page_views: int - Mobile-specific page views of the Careers section.
+30. mobile_careers_unique_page_views: int - Unique mobile page views of the Careers section.
+31. mobile_jobs_page_views: int - Mobile-specific page views of the Jobs section.
+32. mobile_jobs_unique_page_views: int - Unique mobile page views of the Jobs section.
+33. mobile_people_page_views: int - Mobile-specific page views of the People section.
+34. mobile_people_unique_page_views: int - Unique mobile page views of the People section.
+35. mobile_products_page_views: int - Mobile-specific page views of the Products section.
+36. mobile_products_unique_page_views: int - Unique mobile page views of the Products section.
+37. mobile_life_at_page_views: int - Mobile-specific page views of the Life At section.
+38. mobile_life_at_unique_page_views: int - Unique mobile page views of the Life At section.
+39. mobile_insights_page_views: int - Mobile-specific page views of the Insights section.
+40. mobile_insights_unique_page_views: int - Unique mobile page views of the Insights section.
+41. desktop_overview_page_views: int - Desktop-specific page views of the Overview section.
+42. desktop_overview_unique_page_views: int - Unique desktop page views of the Overview section.
+43. desktop_about_page_views: int - Desktop-specific page views of the About section.
+44. desktop_about_unique_page_views: int - Unique desktop page views of the About section.
+45. desktop_careers_page_views: int - Desktop-specific page views of the Careers section.
+46. desktop_careers_unique_page_views: int - Unique desktop page views of the Careers section.
+47. desktop_jobs_page_views: int - Desktop-specific page views of the Jobs section.
+48. desktop_jobs_unique_page_views: int - Unique desktop page views of the Jobs section.
+49. desktop_people_page_views: int - Desktop-specific page views of the People section.
+50. desktop_people_unique_page_views: int - Unique desktop page views of the People section.
+51. desktop_products_page_views: int - Desktop-specific page views of the Products section.
+52. desktop_products_unique_page_views: int - Unique desktop page views of the Products section.
+53. desktop_life_at_page_views: int - Desktop-specific page views of the Life At section.
+54. desktop_life_at_unique_page_views: int - Unique desktop page views of the Life At section.
+55. desktop_insights_page_views: int - Desktop-specific page views of the Insights section.
+56. desktop_insights_unique_page_views: int - Unique desktop page views of the Insights section.
+57. careers_page_promo_links_clicks: int - Clicks on promotional links in the Careers section on this day.
+58. careers_page_banner_promo_clicks: int - Clicks on banner promotions in the Careers section on this day.
+59. careers_page_jobs_clicks: int - Clicks on job listings within the Careers section on this day.
+60. careers_page_employees_clicks: int - Clicks on employee profiles shown in the Careers section on this day.
+61. mobile_careers_page_promo_links_clicks: int - Mobile clicks on promotional links in the Careers section.
+62. mobile_careers_page_jobs_clicks: int - Mobile clicks on job listings in the Careers section.
+63. mobile_careers_page_employees_clicks: int - Mobile clicks on employee profiles in the Careers section.
+64. organization_entity: longtext - LinkedIn organization URN identifying the company page. Use to filter by organization.
+65. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
+
+### 3. Mandatory Relationships & Join Constraints :
+All three tables share the 'day' and 'organization_entity' columns. When joining across tables, always join on BOTH day AND organization_entity to avoid cross-organization data mixing.
+- time_bound_follower_statistic, time_bound_share_statistic, time_bound_page_statistic can all be joined using:
+  ON t1.day = t2.day AND t1.organization_entity = t2.organization_entity
+- The '_fivetran_id' column is a row-level hash within each table — NEVER join across tables on '_fivetran_id'.
+- The '_fivetran_synced' column is an internal sync timestamp — NEVER include it in user-facing query results or WHERE filters.
+- The '_source_db' column may be present if multiple LinkedIn Pages DBs were merged — NEVER include it in user-facing results.
+- The 'organization_entity' column holds LinkedIn URNs (e.g. urn:li:organization:65015275). When multiple organizations are present, group by organization_entity to show per-organization breakdown. When there is only one organization, omit organization_entity from the SELECT unless asked.
+
+{SHARED_AGENT_RULES}
+
+### 4. Domain-Specific Query Logic Instructions :
+
+1. concept: "Followers / Follower count / Follower growth"
+Use the time_bound_follower_statistic table. For "total followers gained" aggregate SUM of both organic and paid gains:
+  SELECT COALESCE(SUM(follower_gains_organic_follower_gain), 0) AS organic_followers_gained,
+         COALESCE(SUM(follower_gains_paid_follower_gain), 0)    AS paid_followers_gained,
+         COALESCE(SUM(follower_gains_organic_follower_gain + follower_gains_paid_follower_gain), 0) AS total_followers_gained
+  FROM time_bound_follower_statistic
+  WHERE day >= '<start>' AND day <= '<end>'
+For "this year" / "YTD": WHERE day >= '{current_year_str}-01-01' AND day <= '{current_date_str}'
+For a specific year (e.g. "in 2025"): WHERE day >= '2025-01-01' AND day <= '2025-12-31'
+NEVER use LIMIT on aggregate follower queries. Always SUM all rows for the period.
+NOTE: The day column is stored as a timestamp (YYYY-MM-DD 00:00:00) — use >= and <= string comparisons on the date portion (e.g. day >= '2026-01-01' AND day <= '2026-06-08').
+
+2. concept: "Post engagement / Impressions / Likes / Comments / Clicks / Shares / Engagement rate"
+Use the time_bound_share_statistic table. Aggregate all engagement metrics with SUM():
+  SELECT COALESCE(SUM(impression_count), 0)        AS total_impressions,
+         COALESCE(SUM(unique_impressions_count), 0) AS unique_impressions,
+         COALESCE(SUM(like_count), 0)               AS total_likes,
+         COALESCE(SUM(comment_count), 0)            AS total_comments,
+         COALESCE(SUM(click_count), 0)              AS total_clicks,
+         COALESCE(SUM(share_count), 0)              AS total_shares,
+         ROUND(AVG(CASE WHEN engagement > 0 THEN engagement END) * 100, 4) AS avg_engagement_rate_pct
+  FROM time_bound_share_statistic
+  WHERE day >= '<start>' AND day <= '<end>'
+NEVER use LIMIT on aggregate queries. SUM all rows for the period.
+For engagement rate: use AVG(engagement) * 100 to express as percentage. Exclude zero-impression days using CASE WHEN engagement > 0.
+The impression_count counts all impressions (including repeat views). unique_impressions_count counts unique members reached.
+
+3. concept: "Page views / Page visitors / LinkedIn page traffic"
+Use the time_bound_page_statistic table. Use all_page_views as the primary total metric:
+  SELECT COALESCE(SUM(all_page_views), 0)         AS total_page_views,
+         COALESCE(SUM(all_unique_page_views), 0)  AS unique_page_views,
+         COALESCE(SUM(all_desktop_page_views), 0) AS desktop_views,
+         COALESCE(SUM(all_mobile_page_views), 0)  AS mobile_views
+  FROM time_bound_page_statistic
+  WHERE day >= '<start>' AND day <= '<end>'
+For "section breakdown" or "which page section gets the most views", aggregate and compare section-level columns:
+  SELECT
+    COALESCE(SUM(overview_page_views), 0)  AS overview_views,
+    COALESCE(SUM(about_page_views), 0)     AS about_views,
+    COALESCE(SUM(careers_page_views), 0)   AS careers_views,
+    COALESCE(SUM(jobs_page_views), 0)      AS jobs_views,
+    COALESCE(SUM(people_page_views), 0)    AS people_views,
+    COALESCE(SUM(products_page_views), 0)  AS products_views,
+    COALESCE(SUM(life_at_page_views), 0)   AS life_at_views,
+    COALESCE(SUM(insights_page_views), 0)  AS insights_views
+  FROM time_bound_page_statistic
+  WHERE day >= '<start>' AND day <= '<end>'
+For "mobile vs desktop breakdown": compare all_mobile_page_views vs all_desktop_page_views.
+
+4. concept: "Best day / Top day / Peak engagement / Most followers in a day"
+To find the best single day, query the relevant table without SUM and use ORDER BY + LIMIT 1:
+  For followers: SELECT date(day) AS date, (follower_gains_organic_follower_gain + follower_gains_paid_follower_gain) AS total_gained FROM time_bound_follower_statistic WHERE day >= '<start>' AND day <= '<end>' ORDER BY total_gained DESC LIMIT 1
+  For impressions: SELECT date(day) AS date, impression_count FROM time_bound_share_statistic WHERE day >= '<start>' AND day <= '<end>' ORDER BY impression_count DESC LIMIT 1
+  For page views: SELECT date(day) AS date, all_page_views FROM time_bound_page_statistic WHERE day >= '<start>' AND day <= '<end>' ORDER BY all_page_views DESC LIMIT 1
+
+5. concept: "Trend / Daily breakdown / Over time"
+To show a daily or monthly trend, group by the day column:
+  SELECT date(day) AS date, COALESCE(SUM(impression_count), 0) AS impressions, COALESCE(SUM(like_count), 0) AS likes
+  FROM time_bound_share_statistic
+  WHERE day >= '<start>' AND day <= '<end>'
+  GROUP BY date(day)
+  ORDER BY date(day)
+For monthly aggregation, use strftime('%Y-%m', day) AS month and GROUP BY month.
+
+6. concept: "Query Returns No Rows"
+Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data. Reference the user's criteria specifically (e.g., 'No LinkedIn Pages data found for the selected period'). Never hallucinate potential reasons for the lack of data.
 
 """
 
@@ -1523,13 +1779,15 @@ Google Ads Group: Use this agent for any questions related to Google Ads.
     },
     "linkedin": {
         "description": """
-LinkedIn Ads Group: Use this agent for any questions related to LinkedIn ads.
-    - linkedin_agent: Mandatory agent for LinkedIn Ads metrics (campaign, campaign cost, performance, ads, ad cost, returns, CTR, or clicks).
-    - Rule: If the user mentions any questions regarding ANY LinkedIn Ads metrics, you MUST delegate to this agent to verify details.
+LinkedIn Ads Group: Use this agent for any questions related to LinkedIn paid ads and campaigns.
+    - linkedin_agent: Mandatory agent for LinkedIn Ads metrics (campaign, campaign cost, ad spend, impressions, clicks, CPC, CTR, total engagements, landing page clicks, ad performance, creatives).
+    - Rule: Delegate ONLY when the query contains BOTH a LinkedIn platform keyword AND an ads/campaign metric keyword. Do NOT delegate for LinkedIn Page organic metrics (followers, page views).
 """,
         "rules": """
-    - Keywords: linkedin, ln, linkedinads, lnads, _ln, linked in.
-    - Delegation: If any keyword is present, delegate.
+    - Platform keywords: linkedin, ln, linkedinads, linkedin ads, lnads.
+    - Metric keywords (at least one required): campaign, campaigns, spend, spent, ad spend, impressions, clicks, cpc, ctr, engagements, total engagements, landing page, creatives, creative, ad cost, ad performance.
+    - Delegation: Delegate ONLY if a platform keyword AND a metric keyword are BOTH present.
+    - Do NOT delegate if the query is about followers, page views, mobile page views, desktop page views — those go to linkedin_pages.
 """
     },
     "facebook": {
@@ -1566,6 +1824,20 @@ Google Analytics (GA4) Group: Use this agent for any questions related to websit
     - Keywords: ga4, google analytics, analytics, sessions, page views, bounce rate, traffic, channel, geo, pages, events, ga campaign, device, device category, device model, by device, engagement by device.
     - Delegation: If any keyword is present, delegate.
 """
+    },
+    "linkedin_pages": {
+        "description": """
+LinkedIn Pages Group: Use this agent for any questions related to LinkedIn Company Page organic performance data.
+    - linkedin_pages_agent: Mandatory agent for LinkedIn Pages metrics (followers, follower growth, total page views, desktop page views, mobile page views, section page views, post impressions, post engagement, likes, comments, shares).
+    - Rule: Delegate when the query contains BOTH a LinkedIn platform keyword AND a pages/organic metric keyword.
+    - Important: This agent covers organic Company Page data only. For LinkedIn Ads campaign costs and paid ad metrics, use the LinkedIn Ads agent instead.
+""",
+        "rules": """
+    - Platform keywords: linkedin, ln, linkedin pages, linkedin page, linkedinpages.
+    - Metric keywords (at least one required): followers, follower, page views, page view, desktop page views, mobile page views, total page views, overview page, about page, careers page, people page, post impressions, post engagement, likes, comments, shares, company page, linkedin page traffic, organic.
+    - Delegation: Delegate ONLY if a platform keyword AND a metric keyword are BOTH present.
+    - Do NOT delegate if the query is about campaigns, ad spend, CPC, CTR, creatives — those go to linkedin (ads).
+"""
     }
 }
 
@@ -1579,7 +1851,8 @@ FINAL OPERATING INSTRUCTIONS:
    STEP 1 — Check if the query contains a PLATFORM keyword:
      Google platform keywords: "google", "GA", "_GA", "googleads"
      Facebook keywords: "facebook", "fb", "fbads"
-     LinkedIn keywords: "linkedin", "ln", "linkedinads"
+     LinkedIn Ads keywords: "linkedin", "ln", "linkedinads", "linkedin ads"
+     LinkedIn Pages keywords: "linkedin", "ln", "linkedin pages", "linkedin page", "linkedinpages"
      Instagram keywords: "instagram", "insta", "ig"
      Shopify keywords: "shopify"
 
@@ -1597,9 +1870,22 @@ FINAL OPERATING INSTRUCTIONS:
      "google" / "GA" / "_GA"  +  analytics keywords ("sessions", "bounce rate", "page views", "traffic", "channel", "geo") → GoogleAnalyticsAgent ONLY
      "google" / "GA" / "_GA"  alone (no specific metric keyword) → BOTH GoogleAdsAgent AND GoogleAnalyticsAgent
      "facebook" / "fb" → FacebookAdsAgent ONLY
-     "linkedin" / "ln" → LinkedInAgent ONLY
+     "linkedin" / "ln" / "linkedinads" / "linkedin ads"  +  ads metric keywords ("campaign", "campaigns", "spend", "spent", "impressions", "clicks", "cpc", "ctr", "engagements", "total engagements", "landing page") → LinkedInAdsAgent ONLY
+     "linkedin" / "ln" / "linkedin pages" / "linkedin page" / "linkedinpages"  +  pages metric keywords ("followers", "follower", "page views", "desktop page views", "mobile page views", "total page views", "overview", "about page", "careers page", "people page", "post impressions", "post engagement", "likes", "comments", "shares") → LinkedInPagesAgent ONLY
+     "linkedin" / "ln"  alone (no specific metric keyword) → BOTH LinkedInAdsAgent AND LinkedInPagesAgent
      "instagram" / "insta" → InstagramAgent ONLY
      "shopify" → ShopifyAgent ONLY
+
+   LinkedIn routing examples:
+     "How many LinkedIn campaigns did I run?"                         → LinkedInAdsAgent ONLY   (linkedin + campaign)
+     "What is my LinkedIn ad spend this month?"                       → LinkedInAdsAgent ONLY   (linkedin + spend)
+     "Show my LinkedIn impressions and clicks"                        → LinkedInAdsAgent ONLY   (linkedin + impressions/clicks)
+     "What is my LinkedIn CPC or CTR?"                                → LinkedInAdsAgent ONLY   (linkedin + cpc/ctr)
+     "How many LinkedIn followers did I gain?"                        → LinkedInPagesAgent ONLY (linkedin + followers)
+     "Show my LinkedIn page views by desktop vs mobile"               → LinkedInPagesAgent ONLY (linkedin + page views)
+     "What are my LinkedIn total page views this year?"               → LinkedInPagesAgent ONLY (linkedin + total page views)
+     "Show my LinkedIn post engagement and likes"                     → LinkedInPagesAgent ONLY (linkedin + post engagement/likes)
+     "How is my LinkedIn performing?"                                 → BOTH LinkedInAdsAgent AND LinkedInPagesAgent (linkedin alone, no metric keyword)
 
 2. **Cross-Platform Metric Routing:**
    - **Scenario A (Specific Platform):** Platform keyword present → route to that platform's agent(s) only per STEP 3.

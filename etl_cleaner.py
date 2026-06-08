@@ -454,6 +454,58 @@ TABLE_CONFIGS = {
             "engagement_rate": DECIMAL(10, 6),
             "key_events": DECIMAL(10, 2)
         }
+    },
+
+    # ==========================================
+    # --- LINKEDIN PAGES ---
+    # ==========================================
+    "time_bound_follower_statistic": {
+        "dates": ["day", "_fivetran_synced"],
+        "ids": [],
+        "floats": [],
+        "sql_types": {
+            "_fivetran_id": String(256),
+            "day": DateTime,
+            "follower_gains_organic_follower_gain": Integer,
+            "follower_gains_paid_follower_gain": Integer
+        }
+    },
+    "time_bound_share_statistic": {
+        "dates": ["day", "_fivetran_synced"],
+        "ids": [],
+        "floats": ["engagement"],
+        "sql_types": {
+            "_fivetran_id": String(256),
+            "day": DateTime,
+            "engagement": DECIMAL(15, 8),
+            "unique_impressions_count": Integer,
+            "share_count": Integer,
+            "click_count": Integer,
+            "like_count": Integer,
+            "impression_count": Integer,
+            "comment_count": Integer
+        }
+    },
+    "time_bound_page_statistic": {
+        "dates": ["day", "_fivetran_synced"],
+        "ids": [],
+        "floats": [],
+        "sql_types": {
+            "_fivetran_id": String(256),
+            "day": DateTime,
+            "all_page_views": Integer,
+            "all_unique_page_views": Integer,
+            "all_desktop_page_views": Integer,
+            "all_mobile_page_views": Integer,
+            "overview_page_views": Integer,
+            "about_page_views": Integer,
+            "careers_page_views": Integer,
+            "jobs_page_views": Integer,
+            "people_page_views": Integer,
+            "products_page_views": Integer,
+            "life_at_page_views": Integer,
+            "insights_page_views": Integer
+        }
     }
 }
 

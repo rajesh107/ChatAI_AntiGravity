@@ -1,0 +1,7 @@
+column_name,data_type,description
+_fivetran_id,varchar(256),"Fivetran-generated unique hash ID. Primary key, used for deduplication."
+day,timestamp(6),Date of the follower statistic record (YYYY-MM-DD). Primary time dimension for filtering and trend analysis.
+follower_gains_organic_follower_gain,int,New organic followers gained this day (unpaid growth from content and page discovery).
+follower_gains_paid_follower_gain,int,New paid followers gained this day (from sponsored follow ads).
+organization_entity,longtext,LinkedIn organization URN identifying the company page (e.g. urn:li:organization:65015275).
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

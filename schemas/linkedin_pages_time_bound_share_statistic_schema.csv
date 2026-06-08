@@ -1,0 +1,14 @@
+column_name,data_type,description
+_fivetran_id,varchar(256),"Fivetran-generated unique hash ID. Primary key, used for deduplication."
+day,timestamp(6),Date of the post/share statistic record (YYYY-MM-DD). Primary time dimension.
+engagement,double,Engagement rate for the day (total interactions / impressions). Multiply by 100 to express as percentage.
+unique_impressions_count,int,Unique members who saw organization posts this day (de-duplicated reach).
+share_count,int,Times organization posts were reshared by other members this day.
+share_mentions_count,int,Post mentions originating from reshares this day.
+click_count,int,"Total clicks on organization posts (links, images, company name) this day."
+like_count,int,Total likes and reactions on organization posts this day.
+impression_count,int,Total post impressions this day (includes repeat views; higher than unique_impressions_count).
+comment_count,int,Total comments received on organization posts this day.
+comment_mentions_count,int,Post mentions originating from comments this day.
+organization_entity,longtext,LinkedIn organization URN identifying the company page (e.g. urn:li:organization:65015275).
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

@@ -100,9 +100,10 @@ TYPE_TO_AGENT_KEY = {
     "GOOGLEADS": "google_ads",
     "SHOPIFY": "shopify",
     "LINKEDINADS": "linkedin",
-    "FBADS": "facebook",  # Map FBADS to the single facebook key
+    "LINKEDIN": "linkedin_pages",
+    "FBADS": "facebook",
     "INSTA": "instagram",
-    "GA": "google_analytics"  # GA4 analytics data
+    "GA": "google_analytics"
 }
 
 class ChatRequest(BaseModel):
