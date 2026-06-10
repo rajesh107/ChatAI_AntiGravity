@@ -1314,12 +1314,31 @@ All six tables share the 'date' and 'property' columns. When joining across tabl
 - The '_fivetran_id' column is NOT a join key between tables — it is a row-level deduplication hash within each table.
 - Never join these tables on '_fivetran_id' across tables.
 
+CRITICAL — CORRECT TABLE FOR AGGREGATE TOTALS:
+Each table in this database is a dimensional breakdown with MULTIPLE rows per date. Summing a metric like sessions or users across all rows of geo or pages will OVERCOUNT because the same session appears across many country×city×source×campaign combinations.
+
+Use this table selection rule strictly:
+- OVERALL TOTALS (sessions, users, page views, bounce rate, avg session) → ALWAYS use `campaign` table. It gives the correct aggregate totals that match the dashboard.
+- GEO BREAKDOWN (by country or city) → use `geo` table, but ONLY when filtering/grouping by country or city. NEVER use geo for overall totals.
+- PAGE BREAKDOWN (by page/URL) → use `pages` table, but ONLY when filtering/grouping by unified_page_path_screen or unified_screen_name. NEVER use pages to compute overall totals for sessions or users.
+- CHANNEL BREAKDOWN (by channel group) → use `demochannel` table.
+- EVENT BREAKDOWN (by event name) → use `categorylabel` table.
+- AD SLOT BREAKDOWN → use `adslot` table.
+
+Examples:
+  "Total sessions in GA this year"                    → campaign table (SUM sessions)
+  "Sessions by country in GA"                         → geo table (GROUP BY country)
+  "Sessions from United States"                       → geo table (WHERE country = 'United States')
+  "Total page views in GA"                            → campaign table (SUM screen_page_views)
+  "Top pages by views"                                → pages table (GROUP BY unified_screen_name)
+  "Sessions for the homepage"                         → pages table (WHERE unified_page_path_screen = '/')
+
 {SHARED_AGENT_RULES}
 
 ### 4. Domain-Specific Query Logic Instructions :
 
 1. concept: "Users / Total users / New users / Active users"
-When user asks about users for ANY time period, ALWAYS aggregate using SUM() across ALL rows for that date range. The campaign table has MULTIPLE rows per date (one per campaign attribution) — you MUST sum them all.
+When user asks about users for ANY time period, ALWAYS use the `campaign` table. NEVER use geo, pages, adslot, or demochannel tables for overall user totals — those tables are dimensional breakdowns and will overcount. The campaign table has MULTIPLE rows per date (one per campaign attribution) — you MUST sum them all.
 
 RESPONSE RULE — select only what was asked:
 - Question contains the word "total users" (exact phrase) → SELECT and return ONLY total_users.
@@ -1355,6 +1374,15 @@ NOTE: The campaign table also contains an internal column '_source_db' added for
 2. concept: "Sessions / Total sessions"
 When user asks about sessions for ANY time period, ALWAYS aggregate using SUM() across ALL rows.
   SELECT COALESCE(SUM(sessions), 0) AS total_sessions FROM campaign WHERE date = '<YYYY-MM-DD>'
+For "yesterday": WHERE date = date('now', '-1 day')
+NEVER use LIMIT. NEVER pick a single row.
+
+2a. concept: "Total page views / Pageviews / Screen page views"
+When user asks for total page views, pageviews, or screen page views for any period, ALWAYS use the `campaign` table. NEVER use the `pages`, `geo`, `adslot`, or `demochannel` tables for overall totals — those have multiple rows per date (dimensional breakdowns) and will overcount.
+  SELECT COALESCE(SUM(screen_page_views), 0) AS total_page_views
+  FROM campaign
+  WHERE date >= '<start_date>' AND date <= '<end_date>'
+For "this year": WHERE date >= '{current_year_str}-01-01' AND date <= '{current_date_str}'
 For "yesterday": WHERE date = date('now', '-1 day')
 NEVER use LIMIT. NEVER pick a single row.
 
@@ -1400,6 +1428,19 @@ The campaign table in this schema does NOT have a transactions column. For "conv
 To evaluate campaign performance or find the top/highest campaign by any metric, query the campaign table and aggregate the following metrics using COALESCE(SUM(...), 0): sessions, engaged_sessions, total_users, new_users, screen_page_views, advertiser_ad_clicks, advertiser_ad_cost, transactions. Group by first_user_campaign_name.
 IMPORTANT: Do NOT filter out any campaign names — include ALL values such as '(direct)', '(not set)', '(referral)', '(organic)', '(cross-network)' etc. These are valid GA4 attribution labels and must be included in results. Only filter out NULL values: WHERE first_user_campaign_name IS NOT NULL. Apply date filters on the date column using boundary-based string comparisons. Sort by the requested metric DESC to find the highest/top campaign.
 
+6a. concept: "Page views / sessions / users of a SPECIFIC named campaign"
+When the user asks for any metric (page views, sessions, users, clicks, bounce rate) for a SPECIFIC campaign by name — ALWAYS use the `campaign` table and filter by `first_user_campaign_name`.
+CRITICAL: Values like '(direct)', '(referral)', '(organic)', '(not set)', 'Shopping Free Listings', 'WW_Japan_EverGreen_Q42025_FB', etc. are ALL campaign names stored in the `first_user_campaign_name` column of the `campaign` table.
+NEVER use the `pages` table for this — the pages table is for page-level analysis only (which URLs/screens were visited). It does NOT contain campaign-level totals.
+Mandatory query pattern:
+  SELECT COALESCE(SUM(screen_page_views), 0) AS total_page_views
+  FROM campaign
+  WHERE first_user_campaign_name = '<campaign_name>'
+  AND date >= '<start_date>' AND date <= '<end_date>'
+If the result is 0 or NULL, respond: "No page views were recorded for the '[campaign_name]' campaign in the specified period." Do NOT say data does not exist without verifying first.
+Example: "page views of Shopping Free Listings campaign this year"
+  → SELECT COALESCE(SUM(screen_page_views), 0) FROM campaign WHERE first_user_campaign_name = 'Shopping Free Listings' AND date >= date('now', 'start of year') AND date <= date('now')
+
 5. concept: "Top pages by traffic" / "most engaging pages" / "most visited pages" / "engaging pages"
 Query the pages table. ALWAYS display unified_screen_name (the human-readable page title) — NOT the URL path.
 Use COALESCE(NULLIF(unified_screen_name, ''), unified_page_path_screen) to fall back to path only if screen name is null/empty.
@@ -1421,8 +1462,50 @@ Present as readable list with all key metrics:
 "1. **Buy Organic, Premium Quality Roasted Cashews** — 3,296 sessions, 3,195 users, 6,878 views, 16.9% bounce rate"
 NEVER show raw URL paths — use page title only.
 
-6. concept: "Traffic by country or city"
-To break down traffic by geography, query the geo table. Aggregate COALESCE(SUM(sessions), 0) AS total_sessions, COALESCE(SUM(total_users), 0) AS total_users. Group by country for country-level or by city for city-level. Filter out '(not set)' values: WHERE country <> '(not set)'. Apply date filters on the date column.
+6. concept: "Traffic by country or city" / "sessions from geo" / "total sessions from geo" / "geo data"
+When user asks about geo traffic, sessions by country/city, or total sessions from geo — you MUST run TWO separate SQL queries and present BOTH results.
+
+MANDATORY QUERY 1 — Run this first, present before anything else:
+  SELECT
+      COALESCE(SUM(total_users), 0)        AS total_users,
+      COALESCE(SUM(new_users), 0)          AS new_users,
+      COALESCE(SUM(sessions), 0)           AS total_sessions,
+      COALESCE(SUM(screen_page_views), 0)  AS page_views,
+      ROUND(SUM(bounce_rate * sessions) / NULLIF(SUM(sessions), 0) * 100, 2) AS bounce_rate_pct,
+      ROUND(SUM(average_session_duration * sessions) / NULLIF(SUM(sessions), 0), 0) AS avg_session_sec
+  FROM geo
+  WHERE country <> '(not set)' AND country <> '' AND city <> '(not set)' AND city <> ''
+  [AND date >= '...' AND date <= '...']
+
+  MANDATORY: Start your response with this exact format:
+  "**Google Analytics Geo Summary [period]:**
+  - Total Sessions: X
+  - Total Users: X
+  - New Users: X
+  - Page Views: X
+  - Bounce Rate: X%
+  - Avg Session: Xm Xs"
+
+MANDATORY QUERY 2 — Run this second, present after the summary:
+  SELECT country,
+      COALESCE(SUM(sessions), 0)           AS sessions,
+      COALESCE(SUM(total_users), 0)        AS total_users,
+      COALESCE(SUM(new_users), 0)          AS new_users,
+      COALESCE(SUM(screen_page_views), 0)  AS page_views
+  FROM geo
+  WHERE country <> '(not set)' AND country <> '' AND city <> '(not set)' AND city <> ''
+  [AND date >= '...' AND date <= '...']
+  GROUP BY country
+  ORDER BY sessions DESC
+  LIMIT 10
+
+  Present as: "**Top 10 Countries:**  1. United States — X sessions ..."
+
+CRITICAL: ALWAYS filter WHERE country <> '(not set)' AND country <> '' AND city <> '(not set)' AND city <> '' — this matches the GA4 Geo dashboard exactly.
+CRITICAL: For bounce_rate and avg_session use session-weighted averages: SUM(metric * sessions) / SUM(sessions). Never use simple AVG().
+CRITICAL: avg_session_sec is in seconds — convert to minutes/seconds format: e.g. 81 seconds = "1m 21s".
+Apply date filters on both queries when a time period is specified.
+If asking specifically by city, GROUP BY city instead.
 
 7. concept: "Channel performance" / "marketing channels" / "channel grouping" / "list for each channel"
 Use demochannel table when user asks about GA marketing channels, channel groupings, or follow-up questions about channels listed in a previous response.
