@@ -1,0 +1,9 @@
+column_name,data_type,description
+campaign_id,varchar(256),Unique identifier for the Facebook Ads campaign. Joins to basic_campaign.campaign_id.
+date,date,The date when the campaign performance metrics were recorded.
+index,int,Sequential index or row number used for internal reference or ordering within a batch.
+action_type,longtext,"The type of user action being measured (e.g., link_click, page_engagement, post_engagement, purchase, view_content, lead)."
+value,double,"Numeric value associated with the action type - typically the count, cost, or conversion value."
+_1_d_view,double,Metric value attributed to a 1-day view-through window - actions that occurred within 1 day after viewing an ad.
+_7_d_click,double,Metric value attributed to a 7-day click-through window - actions that occurred within 7 days after clicking an ad.
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

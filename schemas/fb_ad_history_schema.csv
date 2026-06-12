@@ -1,0 +1,22 @@
+column_name,data_type,description
+id,bigint,Unique identifier for the ad. Serves as the primary key for this table. Joins to basic_ad.ad_id and ad_conversion.id.
+updated_time,timestamp(6),"The last time this ad was updated (e.g., edited, paused, or resumed)."
+account_id,bigint,The Ad Account ID that owns this ad.
+campaign_id,bigint,ID of the campaign that the ad belongs to.
+creative_id,bigint,"ID referencing the ad's creative element (image, video, carousel, etc.)."
+bid_amount,int,"The bid amount in the ad's configured currency units (usually cents or smallest denomination)."
+bid_type,varchar(256),"Bidding method used - e.g., CPC (Cost per Click), CPM (Cost per 1,000 Impressions), CPA (Cost per Action)."
+configured_status,varchar(256),"Advertiser-set status of the ad, such as ACTIVE, PAUSED, ARCHIVED, or DELETED."
+conversion_domain,varchar(256),"The domain used for conversion tracking (e.g., www.example.com)."
+created_time,timestamp(6),Timestamp when the ad was originally created.
+effective_status,varchar(256),"The operational status considering business rules (e.g., ACTIVE, PAUSED, IN_REVIEW)."
+last_updated_by_app_id,varchar(256),The app ID that last modified the ad (if changed via API or automation tool).
+name,varchar(256),The ad's name or descriptive title as configured in Facebook Ads Manager.
+preview_shareable_link,varchar(256),A shareable preview URL of the ad as seen on Facebook or Instagram.
+status,varchar(256),Internal or legacy ad status; may overlap with configured_status for older versions.
+ad_set_id,bigint,ID of the ad set (ad group) that this ad belongs to.
+ad_source_id,bigint,Internal or partner ID related to the creative source or generation method.
+global_discriminatory_practices,varchar(256),Meta-issued notes or compliance flags related to discriminatory practices for this ad globally.
+placement_specific_instagram_discriminatory_practices,varchar(256),Instagram-specific compliance notes if the ad violated platform-level targeting rules.
+placement_specific_facebook_discriminatory_practices,varchar(256),Facebook-specific discriminatory flag details for this ad placement.
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

@@ -1,0 +1,16 @@
+column_name,data_type,description
+campaign_id,varchar(256),Unique identifier for the advertising campaign within Facebook Ads. Joins to basic_campaign_actions.campaign_id.
+date,date,Date of the performance metrics (YYYY-MM-DD). Primary time dimension for filtering and trend analysis.
+account_id,bigint,The Facebook Ad Account ID associated with this campaign.
+impressions,bigint,Total number of times the campaign's ads were shown on screens.
+inline_link_clicks,bigint,Number of clicks on links that lead to external destinations from ads within the campaign.
+reach,bigint,Total number of unique users who saw at least one ad from this campaign.
+cost_per_inline_link_click,double,Average cost for each link click within the campaign.
+cpc,double,"Average cost per overall click (may include different types of clicks, not just links)."
+cpm,double,"Cost per 1,000 impressions across all ads within the campaign."
+ctr,double,Percentage of impressions that resulted in a click (clicks/impressions * 100).
+frequency,double,Average number of times a unique user saw any ad from the campaign.
+spend,double,Total amount spent on this campaign for the reported date.
+campaign_name,longtext,Display name of the campaign as defined by the advertiser.
+inline_link_click_ctr,longtext,"Inline link click-through rate percentage, indicating performance of external call-to-actions."
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

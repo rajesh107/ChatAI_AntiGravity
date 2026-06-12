@@ -26,8 +26,8 @@ from sqlalchemy.pool import StaticPool
 # LangChain / LangGraph
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_openai import ChatOpenAI
-from langchain.agents import create_openai_tools_agent, AgentExecutor
+from langchain_anthropic import ChatAnthropic
+from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import Tool
@@ -43,6 +43,14 @@ from system_msg import (
 )
 
 load_dotenv()
+
+# --- Anthropic (Claude) Configuration ---
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+if not ANTHROPIC_API_KEY:
+    raise RuntimeError(
+        "ANTHROPIC_API_KEY environment variable is required. "
+        "Add it to your .env (ANTHROPIC_API_KEY=sk-ant-...) and restart."
+    )
 
 # --- Connector Database Configuration ---
 conn_user = os.getenv("Connector_USER", "root")
@@ -283,6 +291,24 @@ def create_merged_engine(user_id: str, db_name_list: List[str], group_key: str):
 
     return sqlite_engine
 
+def _content_to_text(content) -> str:
+    """Normalize LLM message content to a plain string.
+
+    ChatOpenAI returns `content` as a str, but ChatAnthropic returns a list of
+    content blocks (e.g. [{'type': 'text', 'text': '...'}]). Flatten those to text.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict):
+                parts.append(block.get("text", ""))
+            else:
+                parts.append(str(block))
+        return "".join(parts)
+    return str(content)
+
 # --- CUSTOM REDUCER FUNCTION ---
 def trim_conversation_history(current_messages: List[BaseMessage], new_messages: List[BaseMessage]) -> List[BaseMessage]:
     if not current_messages:
@@ -306,7 +332,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
 
     print(f"\n⚙️ [BUILD] Building Agent Graph for User: {user_id}")
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+    llm = ChatAnthropic(model="claude-opus-4-8", max_tokens=8000, api_key=ANTHROPIC_API_KEY)
 
     # --- 1. Helper to build sub-agents ---
     def create_agent_tool(group_key, system_msg, agent_name, tool_description):
@@ -342,7 +368,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
             ])
             
-            agent = create_openai_tools_agent(llm, tools, prompt)
+            agent = create_tool_calling_agent(llm, tools, prompt)
             agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
             def run_agent(query: str):
@@ -354,7 +380,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
                     "SHARED_AGENT_RULES": SHARED_AGENT_RULES,
                     "recent_start_date_str": (_now - timedelta(days=30)).strftime("%Y-%m-%d")
                 })
-                return response['output']
+                return _content_to_text(response['output'])
 
             return Tool(name=agent_name, func=run_agent, description=tool_description)
         
@@ -406,7 +432,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
         MessagesPlaceholder(variable_name="agent_scratchpad"),
     ])
     
-    supervisor_agent = create_openai_tools_agent(llm, tools_for_supervisor, supervisor_prompt)
+    supervisor_agent = create_tool_calling_agent(llm, tools_for_supervisor, supervisor_prompt)
     supervisor_executor = AgentExecutor(agent=supervisor_agent, tools=tools_for_supervisor, verbose=True)
 
     class AgentState(TypedDict):
@@ -438,7 +464,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
             "current_year_str": _now.strftime("%Y"),
         })
     
-        return {"messages": [HumanMessage(content=result["output"], name="Supervisor")]}
+        return {"messages": [HumanMessage(content=_content_to_text(result["output"]), name="Supervisor")]}
 
     workflow = StateGraph(AgentState)
     workflow.add_node("supervisor", supervisor_node)

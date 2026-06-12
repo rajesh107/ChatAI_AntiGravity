@@ -1,0 +1,39 @@
+column_name,data_type,description
+date,timestamp(6),The date for which the metrics are recorded.
+page_id,varchar(256),Unique identifier for the Facebook Page.
+page_impressions,double,"Total number of times any content from your Page or about your Page entered a person's screen (includes paid, viral, and non-viral)."
+page_impressions_paid,double,"Number of impressions resulting from paid advertisements (e.g., boosted posts or ads)."
+page_impressions_viral,double,"Number of times content associated with your Page was shown because friends interacted with it (shares, likes, comments)."
+page_impressions_nonviral,double,Number of organic impressions excluding viral reach.
+page_post_engagements,double,"Total number of actions (likes, comments, shares, clicks) on your Page's posts."
+page_daily_follows,double,Number of new followers gained on the specific day.
+page_follows,double,Total cumulative number of followers of the Page up to that date.
+page_actions_post_reactions_like_total,double,Total number of Like reactions on Page posts.
+page_actions_post_reactions_love_total,double,Total number of Love reactions on Page posts.
+page_actions_post_reactions_wow_total,double,Total number of Wow reactions on Page posts.
+page_actions_post_reactions_haha_total,double,Total number of Haha reactions on Page posts.
+page_actions_post_reactions_sorry_total,double,Total number of Sad reactions on Page posts.
+page_actions_post_reactions_anger_total,double,Total number of Angry reactions on Page posts.
+page_total_actions,double,"Total number of all user actions (likes, shares, comments, clicks, etc.) on the Page."
+page_fans,double,Total number of users who have liked the Page (Page fans).
+page_fan_adds,double,Number of new fans who liked the Page on that date.
+page_fan_removes,double,Number of fans who unliked the Page on that date.
+page_views_total,double,"Total number of views of your Page, including profile, posts, and other tabs."
+page_video_views,double,Total number of times Page videos were viewed (at least 3 seconds).
+page_video_views_paid,double,Number of paid video views from ads or promoted posts.
+page_video_views_organic,double,Number of organic video views (unpaid).
+page_video_views_autoplayed,double,Views that were automatically played in users' feeds.
+page_video_views_click_to_play,double,Views that started when users clicked to play the video.
+page_video_repeat_views,double,Number of times videos were rewatched.
+page_video_complete_views_30_s,double,Number of times videos were watched for at least 30 seconds (or to completion for shorter videos).
+page_video_complete_views_30_s_paid,double,30-second (or complete) paid video views.
+page_video_complete_views_30_s_organic,double,30-second (or complete) organic video views.
+page_video_complete_views_30_s_autoplayed,double,30-second (or complete) autoplayed views.
+page_video_complete_views_30_s_click_to_play,double,30-second (or complete) click-to-play views.
+page_video_complete_views_30_s_repeat_views,double,Number of repeated 30-second (or complete) video views.
+page_video_view_time,double,Total time (in milliseconds or seconds) that videos were watched.
+page_posts_impressions,double,Total impressions of Page posts (number of times posts entered users' screens).
+page_posts_impressions_paid,double,Number of paid impressions for Page posts.
+page_posts_impressions_viral,double,Number of viral impressions (caused by users' friends interacting).
+page_posts_impressions_nonviral,double,"Number of non-viral, organic impressions for Page posts."
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

@@ -1,0 +1,17 @@
+column_name,data_type,description
+ad_id,varchar(256),"Unique identifier of the ad. Used to map performance metrics back to specific ad creatives. Joins to ad_history.id."
+date,date,Reporting date for the metrics (YYYY-MM-DD). Primary time dimension for filtering and trend analysis.
+account_id,bigint,ID of the Facebook Ad Account associated with this ad.
+impressions,bigint,Total number of times the ad appeared on users' screens (not unique viewers).
+inline_link_clicks,bigint,"Total number of link clicks on the ad leading to external destinations such as websites or app stores."
+reach,bigint,Number of unique users who viewed the ad at least once on that date.
+cost_per_inline_link_click,double,"Average cost per inline link click, calculated as spend / inline_link_clicks."
+cpc,double,"Cost per click, reflecting the average cost of a user clicking any link in the ad."
+cpm,double,"Cost per thousand impressions (spend / impressions * 1000). Indicates cost efficiency for ad visibility."
+ctr,double,"Click-through rate percentage, calculated as (clicks / impressions) * 100."
+frequency,double,"Average number of times a single person saw the ad. Calculated as impressions / reach."
+spend,double,Total money spent on this ad during the reporting period.
+ad_name,varchar(256),Human-readable name of the ad as defined in Facebook Ads Manager.
+adset_name,varchar(256),"Name of the ad set that this ad belongs to; helps group ads under shared targeting or budget."
+inline_link_click_ctr,varchar(256),"CTR specific to inline link clicks, showing the effectiveness of call-to-action links."
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

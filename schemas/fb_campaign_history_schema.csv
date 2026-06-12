@@ -1,0 +1,48 @@
+column_name,data_type,description
+id,bigint,Unique identifier of the campaign. Joins to basic_campaign.campaign_id.
+updated_time,timestamp(6),Timestamp of when this campaign record was last updated; part of primary key.
+account_id,bigint,Facebook Ad Account ID associated with the campaign.
+source_campaign_id,bigint,Original parent campaign ID used for tracking duplicated campaigns.
+bid_strategy,varchar(256),"Bidding strategy applied (e.g., lowest cost, cost cap)."
+boosted_object_id,bigint,ID of the post or page boosted by the campaign.
+budget_rebalance_flag,tinyint(1),Indicates if Facebook auto-balanced budget across ad sets.
+budget_remaining,double,Remaining budget amount at the time of this snapshot.
+buying_type,varchar(256),Campaign buying method such as AUCTION or RESERVED.
+can_create_brand_lift_study,tinyint(1),Whether the campaign is eligible for a brand-lift study.
+can_use_spend_cap,tinyint(1),Indicates if a spend cap can be applied.
+configured_status,varchar(256),"Status manually set by the advertiser (e.g., ACTIVE, PAUSED, ARCHIVED)."
+created_time,timestamp(6),Date and time when the campaign was originally created.
+daily_budget,bigint,Daily allocated spend for this campaign.
+effective_status,varchar(256),System-determined delivery status.
+is_skadnetwork_attribution,tinyint(1),Indicates if SKAdNetwork measurement is enabled.
+last_budget_toggling_time,timestamp(6),Last time the budget was modified.
+lifetime_budget,bigint,Total lifetime spend limit for the campaign.
+name,varchar(256),Human-readable campaign name.
+objective,varchar(256),"Marketing objective selected for the campaign (e.g., OUTCOME_TRAFFIC, LINK_CLICKS, OUTCOME_LEADS, OUTCOME_AWARENESS, OUTCOME_ENGAGEMENT, BRAND_AWARENESS, POST_ENGAGEMENT, MESSAGES)."
+smart_promotion_type,varchar(256),Promotion type assigned for smart campaigns.
+special_ad_category,varchar(256),"Category indicating restricted ad types (e.g., EMPLOYMENT, housing, credit)."
+spend_cap,bigint,Maximum spend allowed for the campaign.
+start_time,timestamp(6),Campaign start date/time.
+status,varchar(256),Status returned by Facebook API.
+stop_time,timestamp(6),Time when the campaign was stopped or scheduled to end.
+topline_id,bigint,Internal topline identifier used for campaign grouping.
+pacing_type,json,Pacing configuration such as standard or accelerated.
+special_ad_categories,json,Additional list of applicable special ad categories.
+special_ad_category_country,json,Countries where special ad rules apply.
+promoted_object_application_id,bigint,ID of the app promoted by the campaign.
+promoted_object_custom_conversion_id,bigint,ID of the custom conversion used.
+promoted_object_custom_event_str,varchar(256),Custom event name linked to the promotion.
+promoted_object_custom_event_type,varchar(256),"Type of custom event used (e.g., PURCHASE)."
+promoted_object_event_id,bigint,ID of the promoted Facebook event.
+promoted_object_object_store_url,varchar(256),Store or landing page URL for the promoted object.
+promoted_object_offer_id,bigint,ID of the offer used in the campaign.
+promoted_object_offline_conversion_data_set_id,bigint,Offline conversions dataset ID.
+promoted_object_page_id,bigint,Facebook Page ID promoted by the campaign.
+promoted_object_pixel_aggregation_rule,varchar(256),Pixel aggregation behavior.
+promoted_object_pixel_id,bigint,Pixel ID used for conversion tracking.
+promoted_object_pixel_rule,varchar(256),Pixel firing rules configured for this campaign.
+promoted_object_place_page_set_id,bigint,Place Page Set ID for location-based ads.
+promoted_object_product_catalog_id,bigint,Catalog ID used for dynamic ads.
+promoted_object_product_set_id,bigint,Product set used for product-focused ads.
+promoted_object_retention_days,varchar(256),Retention duration set for promoted objects.
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

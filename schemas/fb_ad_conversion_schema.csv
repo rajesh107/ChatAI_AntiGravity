@@ -1,0 +1,31 @@
+column_name,data_type,description
+ad_id,bigint,Unique identifier of the ad responsible for generating the conversion or event. Joins to ad_history.id.
+ad_updated_time,timestamp(6),Timestamp of the last modification to the ad associated with this conversion.
+index,int,Internal numerical index used for ordering or referencing conversion records.
+application,json,Information about the mobile or web application tied to this conversion (if applicable).
+conversion_id,json,"Unique identifier of the specific conversion event (e.g., purchase ID or form submission ID)."
+creative,json,"Metadata describing the creative assets (text, media, layout) associated with the ad."
+dataset,json,Indicates the dataset or data source where this conversion record originated.
+event,json,"Name of the event tracked, such as Purchase, Lead, or AddToCart."
+event_type,json,"Category of event (e.g., onsite engagement, offsite conversion, or lead submission)."
+fb_pixel,json,Facebook Pixel identifier that captured this event on a website.
+fb_pixel_event,json,"Specific event name tracked by the Facebook Pixel (e.g., PageView, AddToCart)."
+leadgen,json,Identifier or reference to a Lead Generation form used for collecting customer data.
+object,json,"The ad object associated with the event, such as a Page Post or Offer."
+offer,json,Data about any offer or promotion related to the ad campaign.
+offsite_pixel,json,Identifier for older Facebook offsite tracking pixels used before Facebook Pixel adoption.
+page,json,Facebook Page linked to this ad or event.
+post,json,Reference to the specific Facebook Post associated with the event.
+question,json,Refers to a Question or Poll post used in interactive campaigns.
+response,json,"The response or answer submitted by a user (e.g., in lead forms or surveys)."
+subtype,json,"Subcategory of the event (e.g., video_view, page_like, or lead_submission)."
+action_type,json,"Defines the action taken by the user (e.g., link_click, purchase, form_submission)."
+event_creator,json,"Identifier of the user, system, or app that created the event."
+object_domain,json,"The domain where the conversion occurred (e.g., example.com)."
+offer_creator,json,Creator or owner of the offer related to the ad.
+page_parent,json,Parent Page or entity associated with the Page for hierarchical tracking.
+post_object_wall,json,"Wall or timeline where the post appeared (user wall, Page wall, etc.)."
+post_wall,json,Specifies the wall or feed location of the post in context.
+post_object,json,"The object associated with the post (e.g., image, video, shared link)."
+question_creator,json,The account or page that created the Question post.
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."
