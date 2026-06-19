@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Request, Depends, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from urllib.parse import quote_plus
@@ -29,6 +29,8 @@ try:
     from agent import get_compiled_graph
 except ImportError:
     def get_compiled_graph(*args): raise NotImplementedError("Agent not found")
+
+from recommendations import get_recommendations
 
 load_dotenv()
 
@@ -114,6 +116,7 @@ class ChatResponse(BaseModel):
     response: str
     thread_id: str
     connected_platforms: List[str]
+    recommendations: List[Dict] = []
 
 # --- Helper: Lookup Active Databases ---
 def get_active_databases(username: str) -> Dict[str, List[str]]:
@@ -206,13 +209,45 @@ def chat_endpoint(
         agent_app = get_compiled_graph(target_username, active_db_map)
         config = {"configurable": {"thread_id": target_username}}
         final_state = agent_app.invoke(
-            {"messages": [HumanMessage(content=request.query)]}, 
+            {"messages": [HumanMessage(content=request.query)]},
             config=config
         )
+
+        messages      = final_state["messages"]
+        text_response = messages[-1].content
+
+        # Extract raw SQL tool outputs for chart data
+        sql_results = [
+            {"sql_result": m.content}
+            for m in messages
+            if isinstance(m, ToolMessage) and m.content
+        ]
+
+        # Extract prior human/assistant turns for context (exclude current turn)
+        chat_history = []
+        for m in messages[:-1]:
+            if isinstance(m, HumanMessage):
+                chat_history.append({"role": "user", "content": m.content})
+            elif isinstance(m, AIMessage) and isinstance(m.content, str) and m.content:
+                chat_history.append({"role": "assistant", "content": m.content})
+
+        # Get chart or follow-up recommendations (non-fatal if it fails)
+        try:
+            recs = get_recommendations(
+                user_question=request.query,
+                agent_response=text_response,
+                sql_results=sql_results,
+                chat_history=chat_history
+            )
+        except Exception as rec_err:
+            print(f"[RECOMMENDATIONS] Non-fatal error: {rec_err}")
+            recs = []
+
         return ChatResponse(
-            response=final_state["messages"][-1].content,
+            response=text_response,
             thread_id=target_username,
-            connected_platforms=list(active_db_map.keys())
+            connected_platforms=list(active_db_map.keys()),
+            recommendations=recs
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
