@@ -27,8 +27,9 @@ from auth import (
 # Import our dynamic factory from agent.py
 try:
     from agent import get_compiled_graph
-except ImportError:
-    def get_compiled_graph(*args): raise NotImplementedError("Agent not found")
+except Exception as _agent_import_err:
+    print(f"[STARTUP ERROR] agent.py import failed: {type(_agent_import_err).__name__}: {_agent_import_err}")
+    def get_compiled_graph(*args): raise NotImplementedError(f"Agent not found: {_agent_import_err}")
 
 from recommendations import get_recommendations
 
