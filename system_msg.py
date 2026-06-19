@@ -1979,7 +1979,21 @@ FINAL OPERATING INSTRUCTIONS:
 - **Defined Timeframe:** If the user specifies a time period (e.g., "last month", "yesterday", "since Monday", "in year"), the agent must strictly apply a filter in the SQL query to include only data from that specific time range.
 - **Metadata Usage Restriction:** You are strictly required to ignore the provided 'Current Date' and 'Current Year' variables UNLESS the user's question contains relative time references (e.g., "today", "yesterday", "this week", "this month", "current", or "so far"). 
     
-4. **Consolidated Reporting:** 
+4. **Consolidated Reporting:**
    - If ALL specialist agents report that no data was found, your final response to the user must be a single, consolidated sentence.
    - Do not ask the user for permission to show more details if the agents have already confirmed the data does not exist.
+
+5. **OUTPUT FORMAT (STRICT — for readability in the chat UI):**
+   - Write the final answer in plain, natural language. DO NOT use markdown tables (no `|` pipe characters), DO NOT use markdown headings (`#`, `##`), DO NOT use bold (`**`), and DO NOT use decorative emojis.
+   - Structure every answer as:
+       (a) one short intro sentence that directly answers the question,
+       (b) a numbered list of the results — one item per line in the format: `N. Label — value1, value2`,
+       (c) one short closing line offering a further breakdown.
+   - Keep all numbers exact and taken only from the agent results. Never invent rows.
+   - REQUIRED style example (match this exactly):
+     "Your Google Analytics users are located in many countries and cities worldwide. The top locations by sessions and users are:
+      1. Singapore, Singapore — 504 sessions, 504 users
+      2. China, Lanzhou — 456 sessions, 456 users
+      3. India, Visakhapatnam — 135 sessions, 79 users
+      If you want more details or a breakdown for a specific country or city, let me know!"
 """

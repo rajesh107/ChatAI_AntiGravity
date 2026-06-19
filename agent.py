@@ -28,7 +28,8 @@ from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain.agents.agent import RunnableMultiActionAgent
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import Tool
 from langgraph.graph import StateGraph, END
@@ -109,6 +110,31 @@ DATA_CACHE_TTL = 86400
 
 # Graph cache TTL: 1 hour — ensures fresh DB data after each Fivetran sync
 GRAPH_CACHE_TTL = 3600
+
+# Model id used for every agent.
+MODEL_ID = "claude-opus-4-8"
+
+def _get_model_max_output_tokens(model_id: str, fallback: int = 16000) -> int:
+    """Fetch the model's real max output-token limit from the Anthropic Models API
+    so we never hard-code a cap. Answers are then bounded only by what the model
+    can actually produce. Falls back if the API is unreachable."""
+    try:
+        import httpx
+        resp = httpx.get(
+            f"https://api.anthropic.com/v1/models/{model_id}",
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        n = int(resp.json()["max_tokens"])
+        print(f"   [MODEL] {model_id} max output = {n} tokens (from Models API)")
+        return n
+    except Exception as e:
+        print(f"   [MODEL] max-output lookup failed ({e}); using fallback {fallback}")
+        return fallback
+
+# Resolved once at startup — the model's true output ceiling, not a magic number.
+MODEL_MAX_OUTPUT_TOKENS = _get_model_max_output_tokens(MODEL_ID)
 
 # --- Global Cache ---
 # Stores {user_id: (compiled_app, build_timestamp)}
@@ -309,6 +335,80 @@ def _content_to_text(content) -> str:
         return "".join(parts)
     return str(content)
 
+
+# --- AUTO-CONTINUING LLM ---
+class CompletingChatAnthropic(ChatAnthropic):
+    """ChatAnthropic that finishes answers cut off by the output-token cap.
+
+    Anthropic sets stop_reason == "max_tokens" when the model hits `max_tokens`
+    mid-answer (a truncated response). For a plain-text answer we re-prompt the
+    model to continue and stitch the parts together until it stops on its own
+    (end_turn / stop_sequence), so callers always get the complete response.
+
+    Only runs on `_generate` (non-streaming), so the LLM must be built with
+    streaming=False. Truncations that happen while emitting a tool call are left
+    alone — continuing those would corrupt the tool-call JSON.
+    """
+
+    max_continuations: int = 4
+
+    @staticmethod
+    def _stop_reason(chat_result):
+        # At _generate time, stop_reason lives in ChatResult.llm_output — the
+        # message's response_metadata isn't populated until langchain-core merges
+        # it in after this method returns.
+        return (chat_result.llm_output or {}).get("stop_reason")
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        result = super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+        gen = result.generations[0]
+        msg = gen.message
+
+        # Don't touch tool-call turns — only complete plain-text answers.
+        if getattr(msg, "tool_calls", None):
+            return result
+        if self._stop_reason(result) != "max_tokens":
+            return result
+
+        merged_text = _content_to_text(msg.content)
+        convo = list(messages)
+        last_msg = msg
+        last_result = result
+
+        for _ in range(self.max_continuations):
+            convo = convo + [
+                AIMessage(content=last_msg.content),
+                HumanMessage(content=(
+                    "Your previous response was cut off because it hit the length "
+                    "limit. Continue from exactly where you stopped. Do not repeat "
+                    "anything you already wrote, and do not add a preamble."
+                )),
+            ]
+            cont = super()._generate(convo, stop=stop, run_manager=run_manager, **kwargs)
+            cont_msg = cont.generations[0].message
+            # A tool call should never appear here, but if it does, stop stitching.
+            if getattr(cont_msg, "tool_calls", None):
+                break
+            merged_text += _content_to_text(cont_msg.content)
+            last_msg = cont_msg
+            last_result = cont
+            if self._stop_reason(cont) != "max_tokens":
+                break
+        else:
+            print("   ⚠️ [LLM] Hit max_continuations; answer may still be truncated.")
+
+        # Return one assistant message carrying the fully stitched answer, and
+        # surface the final (non-truncated) llm_output so stop_reason reads correctly.
+        gen.message = AIMessage(
+            content=merged_text,
+            response_metadata={**(last_result.llm_output or {})},
+            usage_metadata=getattr(last_msg, "usage_metadata", None),
+        )
+        # gen.text derives from gen.message automatically (read-only property).
+        result.llm_output = last_result.llm_output
+        return result
+
+
 # --- CUSTOM REDUCER FUNCTION ---
 def trim_conversation_history(current_messages: List[BaseMessage], new_messages: List[BaseMessage]) -> List[BaseMessage]:
     if not current_messages:
@@ -332,7 +432,16 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
 
     print(f"\n⚙️ [BUILD] Building Agent Graph for User: {user_id}")
 
-    llm = ChatAnthropic(model="claude-opus-4-8", max_tokens=8000, api_key=ANTHROPIC_API_KEY)
+    # Allow the model's full output capacity so a single answer is never
+    # artificially capped. CompletingChatAnthropic still watches stop_reason and
+    # continues past the cap if ever hit, so the complete response is returned.
+    # streaming=False because the continuation logic runs in _generate.
+    llm = CompletingChatAnthropic(
+        model=MODEL_ID,
+        max_tokens=MODEL_MAX_OUTPUT_TOKENS,
+        streaming=False,
+        api_key=ANTHROPIC_API_KEY,
+    )
 
     # --- 1. Helper to build sub-agents ---
     def create_agent_tool(group_key, system_msg, agent_name, tool_description):
@@ -362,13 +471,25 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
             toolkit = SQLDatabaseToolkit(db=db_instance, llm=llm)
             tools = toolkit.get_tools()
 
+            # cache_control on the system block caches the (tools + large system
+            # prompt) prefix so repeat turns read it at ~0.1x cost instead of full price.
             prompt = ChatPromptTemplate.from_messages([
-                ("system", system_msg),
+                ("system", [{
+                    "type": "text",
+                    "text": system_msg,
+                    "cache_control": {"type": "ephemeral"},
+                }]),
                 MessagesPlaceholder(variable_name="messages"),
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
             ])
             
-            agent = create_tool_calling_agent(llm, tools, prompt)
+            # stream_runnable=False forces AgentExecutor to call the LLM via
+            # _generate (not _stream), so CompletingChatAnthropic's continuation
+            # logic runs and truncated answers are completed end-to-end.
+            agent = RunnableMultiActionAgent(
+                runnable=create_tool_calling_agent(llm, tools, prompt),
+                stream_runnable=False,
+            )
             agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
             def run_agent(query: str):
@@ -427,12 +548,21 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
     )
 
     supervisor_prompt = ChatPromptTemplate.from_messages([
-        ("system", final_supervisor_prompt),
+        ("system", [{
+            "type": "text",
+            "text": final_supervisor_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }]),
         MessagesPlaceholder(variable_name="messages"),
         MessagesPlaceholder(variable_name="agent_scratchpad"),
     ])
     
-    supervisor_agent = create_tool_calling_agent(llm, tools_for_supervisor, supervisor_prompt)
+    # stream_runnable=False so the supervisor's final answer also goes through
+    # _generate and gets completed if it hits the token cap.
+    supervisor_agent = RunnableMultiActionAgent(
+        runnable=create_tool_calling_agent(llm, tools_for_supervisor, supervisor_prompt),
+        stream_runnable=False,
+    )
     supervisor_executor = AgentExecutor(agent=supervisor_agent, tools=tools_for_supervisor, verbose=True)
 
     class AgentState(TypedDict):

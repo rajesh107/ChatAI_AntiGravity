@@ -20,9 +20,17 @@ $INCLUDE = @(
     "system_msg.py",
     "upload_to_mysql.py",
     "requirements.txt",
+    "API_DOCUMENTATION.md",
+    "openapi.json",
+    "TECHNICAL_REPORT.md",
+    "CLAUDE_INTEGRATION.md",
+    "CLAUDE_API_CONNECTION.md",
+    "CONNECTORS_DOCUMENTATION.md",
+    "PROMPT_DOCUMENTATION.md",
     "chatbot.service",
     "deploy.sh",
     "deploy_tarball.sh",
+    "deploy_v2.sh",
     "schemas",
     "scripts"
 )

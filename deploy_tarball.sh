@@ -4,10 +4,15 @@
 # Run on the EC2 instance after uploading the archive via scp.
 set -euo pipefail
 
-# ── Config ───────────────────────────────────────────────────────────────────
-APP_DIR="/home/ubuntu/chatbot"
-SERVICE="chatbot"
-BACKUP_DIR="/home/ubuntu/chatbot_backups"
+# ── Config (override via env vars for other deployments, e.g. chatbot-v2) ─────
+APP_DIR="${APP_DIR:-/home/ubuntu/chatbot}"
+SERVICE="${SERVICE:-chatbot}"
+BACKUP_DIR="${BACKUP_DIR:-/home/ubuntu/chatbot_backups}"
+PORT="${PORT:-8000}"
+# Set SKIP_SERVICE_INSTALL=1 to keep the existing systemd unit (don't overwrite
+# it with the repo's chatbot.service) — used when the target service already has
+# its own unit file (e.g. chatbot-v2 runs gunicorn on 8001).
+SKIP_SERVICE_INSTALL="${SKIP_SERVICE_INSTALL:-0}"
 
 # ── Args ─────────────────────────────────────────────────────────────────────
 ARCHIVE="${1:-}"
@@ -86,10 +91,15 @@ pip install "bcrypt==4.0.1" --quiet
 echo "   Dependencies installed"
 
 # ── 6. Install systemd service ───────────────────────────────────────────────
-echo "==> Installing systemd service"
-sudo cp "$APP_DIR/chatbot.service" /etc/systemd/system/${SERVICE}.service
-sudo systemctl daemon-reload
-sudo systemctl enable ${SERVICE}
+if [ "$SKIP_SERVICE_INSTALL" = "1" ]; then
+    echo "==> Skipping systemd unit install (keeping existing ${SERVICE}.service)"
+    sudo systemctl daemon-reload
+else
+    echo "==> Installing systemd service"
+    sudo cp "$APP_DIR/chatbot.service" /etc/systemd/system/${SERVICE}.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable ${SERVICE}
+fi
 
 # ── 7. Start service ──────────────────────────────────────────────────────────
 echo "==> Starting service"
@@ -102,10 +112,10 @@ sudo systemctl --no-pager status ${SERVICE} | head -20
 
 echo ""
 echo "==> Quick API health check:"
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/docs | grep -q "200"; then
-    echo "   API is UP — http://localhost:8000/docs"
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:${PORT}/docs | grep -q "200"; then
+    echo "   API is UP — http://localhost:${PORT}/docs"
 else
-    echo "   WARNING: API did not respond on port 8000"
+    echo "   WARNING: API did not respond on port ${PORT}"
     echo "   Check logs: journalctl -u ${SERVICE} -f"
 fi
 
