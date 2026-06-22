@@ -1619,10 +1619,34 @@ Current Year: {current_year_str}
 ### 2. Tables & Schemas :
 Database Tables and Field Descriptions :
 
-The database consists of three tables (time_bound_follower_statistic, time_bound_share_statistic, time_bound_page_statistic) with the following details:
-The LinkedIn Pages group provides a comprehensive daily view of a company's LinkedIn Page performance, covering follower growth, post engagement, and page visitor activity. All three tables share the 'day' and 'organization_entity' dimensions for time-series and cross-table analysis.
+The database consists of four tables (organization, time_bound_follower_statistic, time_bound_share_statistic, time_bound_page_statistic) with the following details:
+The LinkedIn Pages group provides a comprehensive daily view of a company's LinkedIn Page performance, covering follower growth, post engagement, and page visitor activity. The statistics tables share the 'day' and 'organization_entity' dimensions for time-series and cross-table analysis. The 'organization' table holds company metadata and is the lookup table for filtering by company name.
 
-A. 'time_bound_follower_statistic': This table stores daily follower gain statistics for each LinkedIn company page. Each row represents the number of new organic and paid followers gained on a specific day for a given organization. Useful for tracking audience growth trends, campaign-driven follower spikes, and organic vs. paid follower acquisition.
+A. 'organization': This table stores profile and metadata for each LinkedIn company page (organization). Each row represents one company/page. Use this table when the user asks about a specific company by name, or wants to see which organizations are available. Join to the statistics tables via: CAST(REPLACE(organization_entity, 'urn:li:organization:', '') AS UNSIGNED) = organization.id
+
+Fields in 'organization' table:
+
+1. id: bigint - Numeric LinkedIn organization ID. Primary key. Join to statistics tables via: CAST(REPLACE(organization_entity, 'urn:li:organization:', '') AS UNSIGNED) = organization.id
+2. localized_name: text - Human-readable company/page name (e.g. 'BlueHippo', 'Ask Bee'). Use this for name-based filtering and display in responses.
+3. vanity_name: text - LinkedIn URL slug (e.g. 'usbluehippo'). Used in linkedin.com/company/<vanity_name>.
+4. localized_description: text - Company description text in the default locale.
+5. localized_website: text - Company website URL.
+6. organization_type: text - Legal entity type: PRIVATELY_HELD, SELF_EMPLOYED, NON_PROFIT, EDUCATIONAL, etc.
+7. primary_organization_type: text - Primary sector/category type.
+8. organization_status: text - Active/inactive status of the organization on LinkedIn.
+9. staff_count_range: text - Employee count band: SIZE_1, SIZE_2_TO_10, SIZE_11_TO_50, SIZE_51_TO_200, SIZE_201_TO_500, etc.
+10. founded_on_year: int - Year the organization was founded.
+11. founded_on_month: int - Month the organization was founded (nullable).
+12. founded_on_day: int - Day the organization was founded (nullable).
+13. default_locale_country: text - Country code of the default locale (e.g. US).
+14. default_locale_language: text - Language code of the default locale (e.g. en).
+15. parent_relationship_parent_id: bigint - Numeric ID of the parent organization (if this is a subsidiary).
+16. parent_relationship_type: text - Relationship type to parent org.
+17. parent_relationship_status: text - Status of the parent relationship.
+18. version_tag: text - Internal LinkedIn version tag for this record.
+19. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
+
+B. 'time_bound_follower_statistic': This table stores daily follower gain statistics for each LinkedIn company page. Each row represents the number of new organic and paid followers gained on a specific day for a given organization. Useful for tracking audience growth trends, campaign-driven follower spikes, and organic vs. paid follower acquisition.
 
 Fields in 'time_bound_follower_statistic' table:
 
@@ -1633,7 +1657,7 @@ Fields in 'time_bound_follower_statistic' table:
 5. organization_entity: longtext - LinkedIn organization URN identifying the company page (e.g. urn:li:organization:65015275). Use to filter by organization when multiple are present.
 6. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
 
-B. 'time_bound_share_statistic': This table stores daily post and share engagement statistics for each LinkedIn company page. Each row represents aggregate engagement metrics for all posts/shares published by the organization on a given day. Useful for measuring content reach, engagement rates, likes, comments, and click performance over time.
+C. 'time_bound_share_statistic': This table stores daily post and share engagement statistics for each LinkedIn company page. Each row represents aggregate engagement metrics for all posts/shares published by the organization on a given day. Useful for measuring content reach, engagement rates, likes, comments, and click performance over time.
 
 Fields in 'time_bound_share_statistic' table:
 
@@ -1651,7 +1675,7 @@ Fields in 'time_bound_share_statistic' table:
 12. organization_entity: longtext - LinkedIn organization URN identifying the company page. Use to filter by organization.
 13. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
 
-C. 'time_bound_page_statistic': This table stores daily page view statistics for each LinkedIn company page, broken down by device (desktop/mobile) and page section (Overview, About, Careers, Jobs, People, Products, Life At, Insights). Each row represents aggregate page view counts for a specific day and organization. Useful for understanding which sections attract the most visitors and how mobile vs. desktop traffic compares.
+D. 'time_bound_page_statistic': This table stores daily page view statistics for each LinkedIn company page, broken down by device (desktop/mobile) and page section (Overview, About, Careers, Jobs, People, Products, Life At, Insights). Each row represents aggregate page view counts for a specific day and organization. Useful for understanding which sections attract the most visitors and how mobile vs. desktop traffic compares.
 
 Fields in 'time_bound_page_statistic' table:
 
@@ -1722,13 +1746,22 @@ Fields in 'time_bound_page_statistic' table:
 65. _fivetran_synced: timestamp - Timestamp when Fivetran last synced this row. Internal — never include in user-facing results.
 
 ### 3. Mandatory Relationships & Join Constraints :
-All three tables share the 'day' and 'organization_entity' columns. When joining across tables, always join on BOTH day AND organization_entity to avoid cross-organization data mixing.
-- time_bound_follower_statistic, time_bound_share_statistic, time_bound_page_statistic can all be joined using:
+All four tables are available. The statistics tables (time_bound_follower_statistic, time_bound_share_statistic, time_bound_page_statistic) share the 'day' and 'organization_entity' columns.
+
+**Joining statistics tables to each other** — always join on BOTH day AND organization_entity:
   ON t1.day = t2.day AND t1.organization_entity = t2.organization_entity
+
+**Joining 'organization' to statistics tables** — use the URN extraction pattern:
+  JOIN organization ON CAST(REPLACE(stats.organization_entity, 'urn:li:organization:', '') AS UNSIGNED) = organization.id
+  WHERE organization.localized_name = '<Company Name>'
+  (Replace 'stats' with the actual alias of the statistics table being queried.)
+
+- The 'organization_entity' column stores LinkedIn URNs (e.g. urn:li:organization:65015275). The numeric ID inside matches organization.id.
+- NEVER filter statistics tables by a raw numeric organization ID — always use the JOIN pattern above when filtering by company name.
 - The '_fivetran_id' column is a row-level hash within each table — NEVER join across tables on '_fivetran_id'.
 - The '_fivetran_synced' column is an internal sync timestamp — NEVER include it in user-facing query results or WHERE filters.
 - The '_source_db' column may be present if multiple LinkedIn Pages DBs were merged — NEVER include it in user-facing results.
-- The 'organization_entity' column holds LinkedIn URNs (e.g. urn:li:organization:65015275). When multiple organizations are present, group by organization_entity to show per-organization breakdown. When there is only one organization, omit organization_entity from the SELECT unless asked.
+- When multiple organizations are present and no specific org is requested, group by organization_entity to show per-organization breakdown. Use organization.localized_name in SELECT for readable labels. When there is only one organization, omit organization details unless asked.
 
 {SHARED_AGENT_RULES}
 
@@ -1798,7 +1831,23 @@ To show a daily or monthly trend, group by the day column:
   ORDER BY date(day)
 For monthly aggregation, use strftime('%Y-%m', day) AS month and GROUP BY month.
 
-6. concept: "Query Returns No Rows"
+6. concept: "Organization-specific queries / Filter by company name / Show data for a specific page"
+When the user asks about a specific organization by name (e.g. "BlueHippo", "Ask Bee"), join the relevant statistics table to 'organization' using the URN extraction pattern:
+  SELECT date(f.day) AS date,
+         o.localized_name AS organization,
+         COALESCE(SUM(f.follower_gains_organic_follower_gain), 0) AS organic_followers,
+         COALESCE(SUM(f.follower_gains_paid_follower_gain), 0)    AS paid_followers
+  FROM time_bound_follower_statistic f
+  JOIN organization o ON CAST(REPLACE(f.organization_entity, 'urn:li:organization:', '') AS UNSIGNED) = o.id
+  WHERE o.localized_name = '<Company Name>'
+    AND f.day >= '<start>' AND f.day <= '<end>'
+  GROUP BY date(f.day)
+  ORDER BY date(f.day)
+Apply the same JOIN pattern to time_bound_share_statistic and time_bound_page_statistic when the user asks for engagement or page view data for a specific org.
+If the user does not specify a company, show aggregate totals across all organizations (no JOIN to organization table needed unless displaying the name).
+To list all available organizations: SELECT id, localized_name, vanity_name, organization_type, staff_count_range FROM organization
+
+7. concept: "Query Returns No Rows"
 Whenever a generated SQL query execution results in an empty set (zero rows), the agent must provide a direct, factual response confirming the absence of that specific data. Reference the user's criteria specifically (e.g., 'No LinkedIn Pages data found for the selected period'). Never hallucinate potential reasons for the lack of data.
 
 """

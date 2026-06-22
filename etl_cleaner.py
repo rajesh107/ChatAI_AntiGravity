@@ -459,6 +459,31 @@ TABLE_CONFIGS = {
     # ==========================================
     # --- LINKEDIN PAGES ---
     # ==========================================
+    "organization": {
+        "dates": ["_fivetran_synced"],
+        "ids": ["id", "parent_relationship_parent_id"],
+        "floats": [],
+        "sql_types": {
+            "id": BigInteger,
+            "localized_name": String(512),
+            "vanity_name": String(256),
+            "localized_description": Text,
+            "localized_website": String(512),
+            "organization_type": String(128),
+            "primary_organization_type": String(128),
+            "organization_status": String(64),
+            "staff_count_range": String(64),
+            "founded_on_year": Integer,
+            "founded_on_month": Integer,
+            "founded_on_day": Integer,
+            "default_locale_country": String(16),
+            "default_locale_language": String(16),
+            "parent_relationship_parent_id": BigInteger,
+            "parent_relationship_type": String(64),
+            "parent_relationship_status": String(64),
+            "version_tag": String(64)
+        }
+    },
     "time_bound_follower_statistic": {
         "dates": ["day", "_fivetran_synced"],
         "ids": [],

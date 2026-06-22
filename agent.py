@@ -188,6 +188,7 @@ TABLE_GROUPS = {
         "tech_platform_device_category_report"
     ],
     "linkedin_pages": [
+        "organization",
         "time_bound_follower_statistic",
         "time_bound_share_statistic",
         "time_bound_page_statistic"

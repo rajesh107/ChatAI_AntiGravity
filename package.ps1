@@ -15,6 +15,7 @@ $INCLUDE = @(
     "flush_redis.py",
     "jwt_tester.py",
     "main.py",
+    "recommendations.py",
     "onboard_client.py",
     "setup_admin.py",
     "system_msg.py",

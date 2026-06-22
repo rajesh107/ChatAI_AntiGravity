@@ -1,0 +1,20 @@
+column_name,data_type,description
+id,bigint,"Numeric LinkedIn organization ID. Primary key. Join to follower/page/share tables via: CAST(REPLACE(organization_entity, 'urn:li:organization:', '') AS UNSIGNED) = id"
+localized_name,longtext,"Human-readable company name (e.g. 'BlueHippo'). Use this for name-based filtering and display."
+vanity_name,longtext,"LinkedIn URL slug (e.g. 'usbluehippo'). Used in linkedin.com/company/<vanity_name>."
+localized_description,longtext,Company description text in the default locale.
+localized_website,longtext,Company website URL.
+organization_type,longtext,"Legal entity type: PRIVATELY_HELD, SELF_EMPLOYED, NON_PROFIT, EDUCATIONAL, etc."
+primary_organization_type,longtext,Primary sector/category type.
+organization_status,longtext,Active/inactive status of the organization on LinkedIn.
+staff_count_range,longtext,"Employee count band: SIZE_1, SIZE_2_TO_10, SIZE_11_TO_50, SIZE_51_TO_200, SIZE_201_TO_500, etc."
+founded_on_year,int,Year the organization was founded.
+founded_on_month,int,Month the organization was founded (nullable).
+founded_on_day,int,Day the organization was founded (nullable).
+default_locale_country,longtext,"Country code of the default locale (e.g. US)."
+default_locale_language,longtext,"Language code of the default locale (e.g. en)."
+parent_relationship_parent_id,bigint,Numeric ID of the parent organization (if this is a subsidiary).
+parent_relationship_type,longtext,Relationship type to parent org.
+parent_relationship_status,longtext,Status of the parent relationship.
+version_tag,longtext,Internal LinkedIn version tag for this record.
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."
