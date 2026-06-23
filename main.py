@@ -243,8 +243,9 @@ def chat_endpoint(
     try:
         agent_app = get_compiled_graph(target_username, active_db_map)
         config = {"configurable": {"thread_id": target_username}}
-        invoke_delays = [5, 15, 30]
+        invoke_delays = [10, 20, 40]
         final_state = None
+        last_err = None
         for _attempt, _delay in enumerate(invoke_delays + [None]):
             try:
                 final_state = agent_app.invoke(
@@ -253,14 +254,16 @@ def chat_endpoint(
                 )
                 break
             except Exception as _inv_err:
+                last_err = _inv_err
                 err_str = str(_inv_err)
-                if _delay is not None and ("529" in err_str or "500" in err_str or "overloaded" in err_str or "Internal server error" in err_str):
-                    print(f"[AGENT] Anthropic transient error, retrying in {_delay}s (attempt {_attempt+1}/3): {err_str[:120]}")
+                _is_transient = any(x in err_str for x in ("529", "overloaded", "Internal server error", "api_error", "connection"))
+                if _delay is not None and _is_transient:
+                    print(f"[AGENT] Transient error, retrying in {_delay}s (attempt {_attempt+1}/3): {err_str[:120]}")
                     time.sleep(_delay)
                 else:
                     raise
         if final_state is None:
-            raise Exception("Agent failed after retries")
+            raise last_err or Exception("Agent failed after retries")
 
         messages      = final_state["messages"]
         text_response = messages[-1].content
@@ -301,7 +304,13 @@ def chat_endpoint(
             recommendations=recs
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        err_str = str(e)
+        if any(x in err_str for x in ("529", "overloaded", "Internal server error", "api_error")):
+            raise HTTPException(
+                status_code=503,
+                detail="The AI service is temporarily unavailable. Please try again in a moment."
+            )
+        raise HTTPException(status_code=500, detail=err_str)
 
 if __name__ == "__main__":
     import uvicorn
