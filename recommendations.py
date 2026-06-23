@@ -25,8 +25,8 @@ def _call_with_retry(client, **kwargs):
         try:
             return client.messages.create(**kwargs)
         except anthropic.APIStatusError as e:
-            if e.status_code == 529 and delay is not None:
-                print(f"[RECOMMENDATIONS] Anthropic overloaded (529), retrying in {delay}s (attempt {attempt+1}/3)...")
+            if e.status_code in (500, 529) and delay is not None:
+                print(f"[RECOMMENDATIONS] Anthropic error {e.status_code}, retrying in {delay}s (attempt {attempt+1}/3)...")
                 time.sleep(delay)
                 continue
             raise

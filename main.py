@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import logging
 import jwt
 
@@ -242,10 +243,24 @@ def chat_endpoint(
     try:
         agent_app = get_compiled_graph(target_username, active_db_map)
         config = {"configurable": {"thread_id": target_username}}
-        final_state = agent_app.invoke(
-            {"messages": [HumanMessage(content=request.query)]},
-            config=config
-        )
+        invoke_delays = [5, 15, 30]
+        final_state = None
+        for _attempt, _delay in enumerate(invoke_delays + [None]):
+            try:
+                final_state = agent_app.invoke(
+                    {"messages": [HumanMessage(content=request.query)]},
+                    config=config
+                )
+                break
+            except Exception as _inv_err:
+                err_str = str(_inv_err)
+                if _delay is not None and ("529" in err_str or "500" in err_str or "overloaded" in err_str or "Internal server error" in err_str):
+                    print(f"[AGENT] Anthropic transient error, retrying in {_delay}s (attempt {_attempt+1}/3): {err_str[:120]}")
+                    time.sleep(_delay)
+                else:
+                    raise
+        if final_state is None:
+            raise Exception("Agent failed after retries")
 
         messages      = final_state["messages"]
         text_response = messages[-1].content
