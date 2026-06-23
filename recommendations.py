@@ -112,47 +112,50 @@ You receive:
   - sql_results: raw SQL tool outputs (may contain numeric rows)
   - chat_history: prior conversation turns
 
-## CHART TYPE SELECTION RULES (follow strictly):
+## STEP 1 — ANALYSE THE DATA STRUCTURE (ignore how the question is phrased):
 
-**Use BAR chart when:**
-- Multiple items/categories being compared on a single metric (e.g. top 5 campaigns by spend)
-- Single item with multiple metrics shown together (e.g. one ad's CPC + clicks + spend) → reshape data: each metric becomes a row {metric, value}
-- Geographic breakdown (country/region by follower count, sessions, etc.)
-- Platform-wise or org-wise comparison
+Look at the sql_results and agent_response to understand the shape of the data:
 
-**Use LINE chart when:**
-- Data is across time (daily, weekly, monthly trend)
-- Showing growth or change over a period (e.g. follower growth by month, impressions over time)
-- Comparing trends across two time periods (e.g. this month vs last month)
+A. Does the data have a DATE or TIME column (day, month, week, year)?
+   → The data is a TIME SERIES → use LINE chart
 
-**Use PIE chart when:**
-- Showing proportions or share of a total (e.g. organic vs paid followers, desktop vs mobile traffic)
-- Breaking down a total into 2–6 named parts
-- Questions like "what % of...", "how is X distributed", "breakdown of X"
-- For pie charts: use theta encoding (for the value) and color encoding (for the category), x/y are not needed — set x.field="label", x.type="nominal", x.title="" and y.field="value", y.type="quantitative", y.title="" as placeholders
+B. Does the data have exactly 2–6 named parts that together make up a whole (e.g. organic vs paid, desktop vs mobile, channel breakdown summing to 100%)?
+   → The data is PROPORTIONAL → use PIE chart
 
-**Use PROMPT (follow-up question) when:**
-- The response is a single number with no breakdown
-- The answer is yes/no or purely qualitative
-- There is literally no numeric data to chart
+C. Does the data compare MULTIPLE ITEMS across one metric (top N campaigns, regions, orgs, ads)?
+   → The data is a CATEGORY COMPARISON → use BAR chart
 
-## DECISION PRIORITY:
-If the response contains ANY numeric breakdown across categories, time, or metrics → use chart, NOT prompt.
-Multi-metric single entity (e.g. CPC=1.13, clicks=431, spend=487) → BAR chart with reshaped data.
+D. Does the data show ONE ITEM with MULTIPLE METRICS (e.g. one ad: CPC=1.13, clicks=431, spend=487)?
+   → Reshape into rows: [{metric, value}, ...] → use BAR chart
 
-## FOR CHARTS:
+E. Does the data compare MULTIPLE ITEMS across MULTIPLE METRICS (e.g. org × device)?
+   → use GROUPED BAR chart with color encoding for the second dimension
+
+## STEP 2 — CHART SPECS:
+
+**LINE chart:**
+- x: date/month/period field (ordinal or temporal), y: metric (quantitative)
+- Add color encoding if comparing multiple series (e.g. organic vs paid over time)
+
+**PIE chart:**
+- theta: value field (quantitative), color: label field (nominal)
+- Also set x.field="label", x.type="nominal", x.title="" and y.field="value", y.type="quantitative", y.title="" as placeholders
+
+**BAR chart (simple):**
+- x: category (nominal), y: value (quantitative)
+
+**BAR chart (grouped):**
+- x: primary category (nominal), y: value (quantitative), color: grouping field (nominal)
+
+## STEP 3 — WHEN TO USE PROMPT INSTEAD:
+ONLY use kind="prompt" when the response is a SINGLE number, a yes/no, or pure text with zero numeric breakdown. If there is any numeric data across 2+ items → always use chart.
+
+## RULES:
 - library: always "plotly"
-- Extract REAL data values from agent_response or sql_results into spec.data.values
-- spec.data.values MUST be non-empty with actual numbers from the response
-- For BAR: x=category (nominal), y=value (quantitative)
-- For LINE: x=date/time (temporal or ordinal), y=metric (quantitative); add color if multiple series
-- For PIE: theta=value field, color=label field; still populate x/y as nominal/quantitative placeholders
-- For grouped bars (multiple metrics, multiple entities): add color encoding for the grouping field
-
-## OUTPUT:
-- Return 1 chart recommendation when data is chartable
-- Return 1 chart + 1 prompt when the chart naturally leads to a useful drill-down question
-- Return 1 prompt only when there is truly nothing to chart
+- Extract REAL data values from sql_results or agent_response into spec.data.values (never empty)
+- Never decide chart type based on keywords in the question — decide from DATA SHAPE only
+- Return 1 chart + 1 follow-up prompt when a natural drill-down exists
+- Return 1 prompt only when truly nothing to chart
 """
 
 
