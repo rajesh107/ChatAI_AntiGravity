@@ -484,6 +484,27 @@ TABLE_CONFIGS = {
             "version_tag": String(64)
         }
     },
+    "geo": {
+        "dates": ["_fivetran_synced"],
+        "ids": ["id"],
+        "floats": [],
+        "sql_types": {
+            "id":               BigInteger,
+            "value":            String(512),
+        }
+    },
+    "followers_by_geo": {
+        "dates": ["_fivetran_synced"],
+        "ids": [],
+        "floats": [],
+        "sql_types": {
+            "_fivetran_id":                          String(256),
+            "follower_counts_organic_follower_count": Integer,
+            "follower_counts_paid_follower_count":    Integer,
+            "_organization_entity_urn":               Text,
+            "geo":                                   String(64),
+        }
+    },
     "time_bound_follower_statistic": {
         "dates": ["day", "_fivetran_synced"],
         "ids": [],

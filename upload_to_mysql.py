@@ -181,6 +181,8 @@ database_structure = {
         # LinkedIn Pages tables — table names must match exactly (no prefix)
         "linkedin_pages": [
             "organization.csv",
+            "geo.csv",
+            "followers_by_geo.csv",
             "time_bound_follower_statistic.csv",
             "time_bound_share_statistic.csv",
             "time_bound_page_statistic.csv"

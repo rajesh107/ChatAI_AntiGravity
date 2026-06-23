@@ -1,0 +1,4 @@
+column_name,data_type,description
+id,bigint,"Numeric LinkedIn geo/region ID. Primary key. Join to followers_by_geo via: CAST(followers_by_geo.geo AS UNSIGNED) = geo.id"
+value,longtext,"Human-readable geographic region name (e.g. 'Greater Boston', 'Greater Chicago Area'). Use this for display in responses."
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

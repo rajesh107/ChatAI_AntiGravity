@@ -112,7 +112,7 @@ DATA_CACHE_TTL = 86400
 GRAPH_CACHE_TTL = 3600
 
 # Model id used for every agent.
-MODEL_ID = "claude-opus-4-8"
+MODEL_ID = "claude-sonnet-4-6"
 
 def _get_model_max_output_tokens(model_id: str, fallback: int = 16000) -> int:
     """Fetch the model's real max output-token limit from the Anthropic Models API
@@ -189,6 +189,8 @@ TABLE_GROUPS = {
     ],
     "linkedin_pages": [
         "organization",
+        "geo",
+        "followers_by_geo",
         "time_bound_follower_statistic",
         "time_bound_share_statistic",
         "time_bound_page_statistic"

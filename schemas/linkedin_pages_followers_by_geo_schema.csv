@@ -1,0 +1,7 @@
+column_name,data_type,description
+_fivetran_id,varchar(256),"Fivetran-generated unique hash ID. Primary key used for deduplication. Do not use as a business key."
+follower_counts_organic_follower_count,int,"Number of organic (unpaid) followers from this geographic region."
+follower_counts_paid_follower_count,int,"Number of paid (sponsored) followers from this geographic region."
+_organization_entity_urn,longtext,"LinkedIn organization URN identifying the company page (e.g. urn:li:organization:65015275). Join to organization table via: CAST(REPLACE(_organization_entity_urn, 'urn:li:organization:', '') AS UNSIGNED) = organization.id"
+geo,longtext,"Numeric geo region ID as a string. Join to geo table via: CAST(geo AS UNSIGNED) = geo.id to get the region name."
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."
