@@ -22,7 +22,7 @@ _RECOMMENDATION_TOOL = {
             "recommendations": {
                 "type": "array",
                 "minItems": 1,
-                "maxItems": 2,
+                "maxItems": 5,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -122,15 +122,21 @@ C. Multiple items ranked by one metric (top campaigns, regions, ads)? → CATEGO
 D. One item with multiple metrics (e.g. one ad: CPC + clicks + spend)? → reshape to [{metric, value}] → BAR chart
 E. Multiple items × multiple metrics (e.g. org × device)? → GROUPED BAR with color encoding
 
-## STEP 2 — MULTI-METRIC DAILY/MONTHLY DATA (most important case):
+## STEP 2 — MULTI-METRIC DATA (most important case):
 
-When the data is a daily or monthly breakdown with MULTIPLE metrics per row (e.g. page_views + impressions + followers per day):
-- Pick the MOST IMPORTANT single metric for the chart (impressions > page_views > followers, or whatever is most relevant to the question)
-- Use LINE chart with x=date, y=that metric
-- In spec.data.values include ALL date rows with that metric value
-- NEVER skip dates to save space — include every row from sql_results
-- If there are multiple metrics and they are on similar scales, use color encoding to show multiple series on one LINE chart
+When the response contains MULTIPLE distinct metrics (e.g. page_views + impressions + followers, or CPC + clicks + spend):
+- Generate ONE SEPARATE CHART per metric — do NOT combine them into one chart
+- Each chart has its own spec.data.values containing only that metric's data
+- For time-series (daily/monthly): each metric gets a LINE chart (x=date, y=metric value)
+- For single-point multi-metric (e.g. one ad's totals): each metric gets a BAR chart with one bar, OR group them if scales are similar
+- NEVER combine metrics with different units/scales (e.g. dollars and counts) onto the same chart
 - ALWAYS prefer sql_results over agent_response for extracting data values (raw data is more reliable)
+- Include ALL date rows — never skip dates to save space
+
+Example: daily page_views + impressions + followers → 3 separate LINE charts:
+  Chart 1: label="Daily Page Views", data=[{date, page_views}], mark=line, x=date, y=page_views
+  Chart 2: label="Daily Post Impressions", data=[{date, impressions}], mark=line, x=date, y=impressions
+  Chart 3: label="Daily Followers Gained", data=[{date, followers}], mark=line, x=date, y=followers
 
 ## STEP 3 — CHART SPECS:
 
@@ -153,8 +159,9 @@ ONLY when the response is a SINGLE number, a yes/no answer, or contains zero num
 - Extract data values from sql_results (preferred) or agent_response — never empty
 - Do NOT skip rows to save space — include all data points
 - Never decide chart type from question keywords — use DATA SHAPE only
-- Return 1 chart recommendation (the most useful visualization)
-- Optionally add 1 follow-up prompt as a second recommendation when a drill-down is natural
+- Return ONE chart per metric when there are multiple metrics (up to 4 charts)
+- Optionally add 1 follow-up prompt as the last recommendation when a drill-down is natural
+- Single metric → 1 chart only
 """
 
 
