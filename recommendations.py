@@ -22,7 +22,7 @@ _RECOMMENDATION_TOOL = {
             "recommendations": {
                 "type": "array",
                 "minItems": 1,
-                "maxItems": 5,
+                "maxItems": 2,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -112,65 +112,46 @@ You receive:
   - sql_results: raw SQL tool outputs (may contain numeric rows)
   - chat_history: prior conversation turns
 
-## STEP 1 — ANALYSE THE DATA STRUCTURE (ignore how the question is phrased):
+## STEP 1 — PICK THE SINGLE BEST CHART TYPE (from data shape only):
 
-Look at sql_results first (raw data), then agent_response. Determine the shape:
+Look at sql_results first, then agent_response. Choose EXACTLY ONE chart type:
 
-A. Does the data have a DATE or TIME column (day, month, week, year)? → TIME SERIES → LINE chart
-B. Does the data have 2–6 named parts summing to a whole (organic vs paid, desktop vs mobile)? → PROPORTIONAL → PIE chart
-C. Multiple items ranked by one metric (top campaigns, regions, ads)? → CATEGORY COMPARISON → BAR chart
-D. One item with multiple metrics (e.g. one ad: CPC + clicks + spend)? → reshape to [{metric, value}] → BAR chart
-E. Multiple items × multiple metrics (e.g. org × device)? → GROUPED BAR with color encoding
+**LINE** — data has a date/time column (daily, monthly, weekly breakdown)
+  x=date, y=primary metric; add color encoding if multiple orgs/series exist
 
-## STEP 2 — MULTI-METRIC DATA (most important case):
+**PIE** — data has 2-6 named parts making up a whole (organic vs paid, desktop vs mobile, share of total)
+  theta=value, color=label
 
-When the response contains MULTIPLE distinct metrics (e.g. page_views + impressions + followers, or CPC + clicks + spend):
-- Generate ONE SEPARATE CHART per metric — do NOT combine them into one chart
-- Each chart has its own spec.data.values containing only that metric's data
-- For time-series (daily/monthly): each metric gets a LINE chart (x=date, y=metric value)
-- For single-point multi-metric (e.g. one ad's totals): each metric gets a BAR chart with one bar, OR group them if scales are similar
-- NEVER combine metrics with different units/scales (e.g. dollars and counts) onto the same chart
-- ALWAYS prefer sql_results over agent_response for extracting data values (raw data is more reliable)
-- Include ALL date rows — never skip dates to save space
+**BAR** — everything else: category rankings, multi-metric summaries, single-entity multi-metric
+  x=category, y=value; use color for grouping when multiple dimensions exist
+  For single entity with multiple metrics: reshape to [{metric, value}, ...]
 
-Example A — single org, multiple metrics → 3 separate LINE charts:
-  Chart 1: label="Daily Page Views", data=[{date, page_views}], mark=line, x=date, y=page_views
-  Chart 2: label="Daily Post Impressions", data=[{date, impressions}], mark=line, x=date, y=impressions
-  Chart 3: label="Daily Followers Gained", data=[{date, followers}], mark=line, x=date, y=followers
+## STEP 2 — ALWAYS EXACTLY ONE CHART:
 
-Example B — multiple orgs, multiple metrics → one LINE chart per metric, each with color=org:
-  Chart 1: label="Daily Page Views by Org", data=[{date, org, page_views}, ...], mark=line,
-           x=date, y=page_views, color=org (each org is a separate line)
-  Chart 2: label="Daily Post Impressions by Org", data=[{date, org, impressions}, ...], mark=line,
-           x=date, y=impressions, color=org
-  → This way each metric chart shows all orgs as colored lines
+Generate EXACTLY ONE chart recommendation. Never generate multiple charts.
 
-When data has both multiple orgs AND multiple metrics: generate one chart per metric with color=org. Do NOT exceed 4 chart recommendations total.
+For multi-metric data (page_views + impressions + followers):
+- If data has dates → LINE chart; pick the most relevant metric as y-axis; use color=org if multiple orgs
+- If data is a summary (no dates) → BAR chart; pick most important metric as y-axis OR use grouped bar with color=metric
 
-## STEP 3 — CHART SPECS:
+For multi-org + multi-metric daily data:
+- ONE LINE chart; x=date, y=the most asked-about metric, color=org
+- Each org becomes a separate colored line
 
-**LINE chart:**
-- x: date field (type: "ordinal"), y: metric (type: "quantitative")
-- Add color encoding if showing 2–3 metrics as separate lines
+## STEP 3 — SPECS:
 
-**PIE chart:**
-- theta: value field (quantitative), color: label field (nominal)
-- Also set x.field="label", x.type="nominal", x.title="" and y.field="value", y.type="quantitative", y.title="" as placeholders
+LINE: x={field,type:"ordinal",title}, y={field,type:"quantitative",title}, optional color={field,type:"nominal",title}
+PIE:  theta={field,type:"quantitative"}, color={field,type:"nominal"}, x={field:"label",type:"nominal",title:""}, y={field:"value",type:"quantitative",title:""}
+BAR:  x={field,type:"nominal",title}, y={field,type:"quantitative",title}, optional color for grouping
 
-**BAR chart:** x: category (nominal), y: value (quantitative)
-**GROUPED BAR:** x: primary category, y: value, color: grouping field
-
-## STEP 4 — WHEN TO USE PROMPT INSTEAD:
-ONLY when the response is a SINGLE number, a yes/no answer, or contains zero numeric data. ANY breakdown across 2+ dates/items/categories → always use chart.
+## STEP 4 — SKIP CHART ONLY WHEN:
+Response is a single number, yes/no, or zero numeric data. Otherwise always chart.
 
 ## RULES:
 - library: always "plotly"
-- Extract data values from sql_results (preferred) or agent_response — never empty
-- Do NOT skip rows to save space — include all data points
-- Never decide chart type from question keywords — use DATA SHAPE only
-- Return ONE chart per metric when there are multiple metrics (up to 4 charts)
-- Optionally add 1 follow-up prompt as the last recommendation when a drill-down is natural
-- Single metric → 1 chart only
+- Extract ALL data rows from sql_results (preferred) or agent_response — never empty, never skip rows
+- Decide chart type from DATA SHAPE only, never question keywords
+- Return 1 chart + optionally 1 follow-up prompt (max 2 total)
 """
 
 
