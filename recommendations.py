@@ -114,48 +114,47 @@ You receive:
 
 ## STEP 1 — ANALYSE THE DATA STRUCTURE (ignore how the question is phrased):
 
-Look at the sql_results and agent_response to understand the shape of the data:
+Look at sql_results first (raw data), then agent_response. Determine the shape:
 
-A. Does the data have a DATE or TIME column (day, month, week, year)?
-   → The data is a TIME SERIES → use LINE chart
+A. Does the data have a DATE or TIME column (day, month, week, year)? → TIME SERIES → LINE chart
+B. Does the data have 2–6 named parts summing to a whole (organic vs paid, desktop vs mobile)? → PROPORTIONAL → PIE chart
+C. Multiple items ranked by one metric (top campaigns, regions, ads)? → CATEGORY COMPARISON → BAR chart
+D. One item with multiple metrics (e.g. one ad: CPC + clicks + spend)? → reshape to [{metric, value}] → BAR chart
+E. Multiple items × multiple metrics (e.g. org × device)? → GROUPED BAR with color encoding
 
-B. Does the data have exactly 2–6 named parts that together make up a whole (e.g. organic vs paid, desktop vs mobile, channel breakdown summing to 100%)?
-   → The data is PROPORTIONAL → use PIE chart
+## STEP 2 — MULTI-METRIC DAILY/MONTHLY DATA (most important case):
 
-C. Does the data compare MULTIPLE ITEMS across one metric (top N campaigns, regions, orgs, ads)?
-   → The data is a CATEGORY COMPARISON → use BAR chart
+When the data is a daily or monthly breakdown with MULTIPLE metrics per row (e.g. page_views + impressions + followers per day):
+- Pick the MOST IMPORTANT single metric for the chart (impressions > page_views > followers, or whatever is most relevant to the question)
+- Use LINE chart with x=date, y=that metric
+- In spec.data.values include ALL date rows with that metric value
+- NEVER skip dates to save space — include every row from sql_results
+- If there are multiple metrics and they are on similar scales, use color encoding to show multiple series on one LINE chart
+- ALWAYS prefer sql_results over agent_response for extracting data values (raw data is more reliable)
 
-D. Does the data show ONE ITEM with MULTIPLE METRICS (e.g. one ad: CPC=1.13, clicks=431, spend=487)?
-   → Reshape into rows: [{metric, value}, ...] → use BAR chart
-
-E. Does the data compare MULTIPLE ITEMS across MULTIPLE METRICS (e.g. org × device)?
-   → use GROUPED BAR chart with color encoding for the second dimension
-
-## STEP 2 — CHART SPECS:
+## STEP 3 — CHART SPECS:
 
 **LINE chart:**
-- x: date/month/period field (ordinal or temporal), y: metric (quantitative)
-- Add color encoding if comparing multiple series (e.g. organic vs paid over time)
+- x: date field (type: "ordinal"), y: metric (type: "quantitative")
+- Add color encoding if showing 2–3 metrics as separate lines
 
 **PIE chart:**
 - theta: value field (quantitative), color: label field (nominal)
 - Also set x.field="label", x.type="nominal", x.title="" and y.field="value", y.type="quantitative", y.title="" as placeholders
 
-**BAR chart (simple):**
-- x: category (nominal), y: value (quantitative)
+**BAR chart:** x: category (nominal), y: value (quantitative)
+**GROUPED BAR:** x: primary category, y: value, color: grouping field
 
-**BAR chart (grouped):**
-- x: primary category (nominal), y: value (quantitative), color: grouping field (nominal)
-
-## STEP 3 — WHEN TO USE PROMPT INSTEAD:
-ONLY use kind="prompt" when the response is a SINGLE number, a yes/no, or pure text with zero numeric breakdown. If there is any numeric data across 2+ items → always use chart.
+## STEP 4 — WHEN TO USE PROMPT INSTEAD:
+ONLY when the response is a SINGLE number, a yes/no answer, or contains zero numeric data. ANY breakdown across 2+ dates/items/categories → always use chart.
 
 ## RULES:
 - library: always "plotly"
-- Extract REAL data values from sql_results or agent_response into spec.data.values (never empty)
-- Never decide chart type based on keywords in the question — decide from DATA SHAPE only
-- Return 1 chart + 1 follow-up prompt when a natural drill-down exists
-- Return 1 prompt only when truly nothing to chart
+- Extract data values from sql_results (preferred) or agent_response — never empty
+- Do NOT skip rows to save space — include all data points
+- Never decide chart type from question keywords — use DATA SHAPE only
+- Return 1 chart recommendation (the most useful visualization)
+- Optionally add 1 follow-up prompt as a second recommendation when a drill-down is natural
 """
 
 
@@ -181,7 +180,7 @@ def get_recommendations(
         client = _get_client()
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=4096,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
             tools=[_RECOMMENDATION_TOOL],
