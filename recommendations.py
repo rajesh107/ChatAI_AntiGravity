@@ -4,13 +4,38 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import time
+
 _client = None
 
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        _client = anthropic.Anthropic(
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            max_retries=0,  # we handle retries manually below
+        )
     return _client
+
+
+def _call_with_retry(client, **kwargs):
+    """Call client.messages.create with exponential backoff on 529 overloaded errors."""
+    delays = [5, 15, 30]
+    for attempt, delay in enumerate(delays + [None]):
+        try:
+            return client.messages.create(**kwargs)
+        except anthropic.APIStatusError as e:
+            if e.status_code == 529 and delay is not None:
+                print(f"[RECOMMENDATIONS] Anthropic overloaded (529), retrying in {delay}s (attempt {attempt+1}/3)...")
+                time.sleep(delay)
+                continue
+            raise
+        except anthropic.APIConnectionError:
+            if delay is not None:
+                print(f"[RECOMMENDATIONS] Connection error, retrying in {delay}s...")
+                time.sleep(delay)
+                continue
+            raise
 
 
 _RECOMMENDATION_TOOL = {
@@ -175,7 +200,8 @@ def get_recommendations(
 
     try:
         client = _get_client()
-        response = client.messages.create(
+        response = _call_with_retry(
+            client,
             model="claude-sonnet-4-6",
             max_tokens=8192,
             system=_SYSTEM_PROMPT,

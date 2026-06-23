@@ -444,6 +444,7 @@ def get_compiled_graph(user_id: str, active_db_map: dict):
         max_tokens=MODEL_MAX_OUTPUT_TOKENS,
         streaming=False,
         api_key=ANTHROPIC_API_KEY,
+        max_retries=3,  # auto-retry on 529 overloaded / transient errors
     )
 
     # --- 1. Helper to build sub-agents ---
