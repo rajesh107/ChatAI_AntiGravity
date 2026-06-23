@@ -34,7 +34,7 @@ _RECOMMENDATION_TOOL = {
                         "prompt": {"type": "string"},
                         "library": {
                             "type": "string",
-                            "enum": ["vega-lite", "plotly"]
+                            "enum": ["plotly"]
                         },
                         "spec": {
                             "type": "object",
@@ -49,7 +49,10 @@ _RECOMMENDATION_TOOL = {
                                     },
                                     "required": ["values"]
                                 },
-                                "mark": {"type": "string"},
+                                "mark": {
+                                    "type": "string",
+                                    "enum": ["bar", "line", "pie", "scatter"]
+                                },
                                 "encoding": {
                                     "type": "object",
                                     "properties": {
@@ -70,9 +73,24 @@ _RECOMMENDATION_TOOL = {
                                                 "title": {"type": "string"}
                                             },
                                             "required": ["field", "type", "title"]
+                                        },
+                                        "color": {
+                                            "type": "object",
+                                            "properties": {
+                                                "field": {"type": "string"},
+                                                "type":  {"type": "string"},
+                                                "title": {"type": "string"}
+                                            }
+                                        },
+                                        "theta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "field": {"type": "string"},
+                                                "type":  {"type": "string"},
+                                                "title": {"type": "string"}
+                                            }
                                         }
-                                    },
-                                    "required": ["x", "y"]
+                                    }
                                 }
                             },
                             "required": ["data", "mark", "encoding"]
@@ -86,28 +104,56 @@ _RECOMMENDATION_TOOL = {
     }
 }
 
-_SYSTEM_PROMPT = (
-    "You are an assistant that decides whether a chatbot response is chartable and generates structured recommendations.\n\n"
-    "You will receive:\n"
-    "  - user_question: what the user asked\n"
-    "  - agent_response: the formatted text answer from the chatbot\n"
-    "  - sql_results: raw SQL tool outputs (may contain numeric rows)\n"
-    "  - chat_history: prior conversation turns\n\n"
-    "Decision rule:\n"
-    "  - If the response contains numeric data across categories/time (e.g. sessions by country, spend by campaign, "
-    "impressions over time) → kind='chart'\n"
-    "  - If the response is a single number, a yes/no, or plain text with no breakdown → kind='prompt' "
-    "(suggest a useful follow-up question)\n\n"
-    "For kind='chart':\n"
-    "  - Extract the actual data values from agent_response or sql_results into spec.data.values as objects\n"
-    "  - Always use 'plotly' as library unless user explicitly asked for vega-lite\n"
-    "  - Choose appropriate mark: 'bar' for categories, 'line' for time series, 'scatter' for correlations\n"
-    "  - spec.data.values MUST contain the real data rows (not empty)\n"
-    "  - spec.encoding.x and y MUST both have field, type, title\n\n"
-    "For kind='prompt':\n"
-    "  - Suggest a specific, actionable follow-up question relevant to the current response\n\n"
-    "Generate exactly ONE recommendation."
-)
+_SYSTEM_PROMPT = """You are an assistant that generates chart recommendations for a marketing analytics chatbot.
+
+You receive:
+  - user_question: what the user asked
+  - agent_response: the formatted text answer from the chatbot
+  - sql_results: raw SQL tool outputs (may contain numeric rows)
+  - chat_history: prior conversation turns
+
+## CHART TYPE SELECTION RULES (follow strictly):
+
+**Use BAR chart when:**
+- Multiple items/categories being compared on a single metric (e.g. top 5 campaigns by spend)
+- Single item with multiple metrics shown together (e.g. one ad's CPC + clicks + spend) → reshape data: each metric becomes a row {metric, value}
+- Geographic breakdown (country/region by follower count, sessions, etc.)
+- Platform-wise or org-wise comparison
+
+**Use LINE chart when:**
+- Data is across time (daily, weekly, monthly trend)
+- Showing growth or change over a period (e.g. follower growth by month, impressions over time)
+- Comparing trends across two time periods (e.g. this month vs last month)
+
+**Use PIE chart when:**
+- Showing proportions or share of a total (e.g. organic vs paid followers, desktop vs mobile traffic)
+- Breaking down a total into 2–6 named parts
+- Questions like "what % of...", "how is X distributed", "breakdown of X"
+- For pie charts: use theta encoding (for the value) and color encoding (for the category), x/y are not needed — set x.field="label", x.type="nominal", x.title="" and y.field="value", y.type="quantitative", y.title="" as placeholders
+
+**Use PROMPT (follow-up question) when:**
+- The response is a single number with no breakdown
+- The answer is yes/no or purely qualitative
+- There is literally no numeric data to chart
+
+## DECISION PRIORITY:
+If the response contains ANY numeric breakdown across categories, time, or metrics → use chart, NOT prompt.
+Multi-metric single entity (e.g. CPC=1.13, clicks=431, spend=487) → BAR chart with reshaped data.
+
+## FOR CHARTS:
+- library: always "plotly"
+- Extract REAL data values from agent_response or sql_results into spec.data.values
+- spec.data.values MUST be non-empty with actual numbers from the response
+- For BAR: x=category (nominal), y=value (quantitative)
+- For LINE: x=date/time (temporal or ordinal), y=metric (quantitative); add color if multiple series
+- For PIE: theta=value field, color=label field; still populate x/y as nominal/quantitative placeholders
+- For grouped bars (multiple metrics, multiple entities): add color encoding for the grouping field
+
+## OUTPUT:
+- Return 1 chart recommendation when data is chartable
+- Return 1 chart + 1 prompt when the chart naturally leads to a useful drill-down question
+- Return 1 prompt only when there is truly nothing to chart
+"""
 
 
 def get_recommendations(
@@ -117,8 +163,8 @@ def get_recommendations(
     chat_history: list
 ) -> list:
     """
-    Returns a list with ONE recommendation dict:
-      kind='chart' → {kind, label, library, spec: {data: {values}, mark, encoding: {x, y}}}
+    Returns a list of 1-2 recommendation dicts:
+      kind='chart' → {kind, label, library, spec: {data: {values}, mark, encoding}}
       kind='prompt' → {kind, label, prompt}
     """
     user_content = (
