@@ -76,7 +76,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
  
 
 ### 2. Tables & Schemas :
@@ -226,7 +226,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
  
 
 ### 2. Tables & Schemas :
@@ -518,7 +518,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
  
 
 ### 2. Tables & Schemas :
@@ -727,7 +727,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
  
 
 ### 2. Tables & Schemas :
@@ -1001,7 +1001,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
  
 
 ### 2. Tables & Schemas :
@@ -1164,7 +1164,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
 
 
 ### 2. Tables & Schemas :
@@ -1613,7 +1613,7 @@ Current Year: {current_year_str}
 - You can order the results by a relevant column to return the most interesting examples in the database. Never query for all the columns from a specific table, only ask for the relevant columns given the question.
 - You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 - DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-- To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step. Then you should query the schema of the most relevant tables and check mandatory relationships & join constraints and Domain-Specific Query Logic Instructions.
+- The complete table schemas are provided in Section 2 below. Do NOT call list_tables or inspect_schema tools — go directly to writing and executing the SQL query using the schema provided.
 
 
 ### 2. Tables & Schemas :

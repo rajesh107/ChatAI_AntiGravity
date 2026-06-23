@@ -89,6 +89,39 @@ async def startup_event():
             print("✅ [STARTUP] Admin DB Connected")
     except Exception:
         pass
+    # Pre-warm Redis cache for all active platform data in the background
+    import threading
+    threading.Thread(target=_prewarm_all_caches, daemon=True).start()
+
+def _prewarm_all_caches():
+    """Background: load all active DB groups into Redis cache so first user request is fast."""
+    try:
+        from agent import create_merged_engine, TABLE_GROUPS
+        if not admin_engine:
+            return
+        with admin_engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT type, schema_name FROM fivetran_connections WHERE status = 1"
+                " AND type IN ('FBADS','FB','GOOGLEADS','INSTA','LINKEDINADS','LINKEDIN','GA','SHOPIFY')"
+            )).fetchall()
+        # Group db_names by agent_key
+        group_dbs: Dict[str, List[str]] = {}
+        for row in rows:
+            key = TYPE_TO_AGENT_KEY.get(row[0])
+            if key:
+                group_dbs.setdefault(key, [])
+                if row[1] not in group_dbs[key]:
+                    group_dbs[key].append(row[1])
+        for group_key, db_names in group_dbs.items():
+            if group_key not in TABLE_GROUPS:
+                continue
+            try:
+                create_merged_engine(user_id="__prewarm__", db_name_list=db_names, group_key=group_key)
+                print(f"   🔥 [PREWARM] {group_key} cached ({len(db_names)} dbs)")
+            except Exception as e:
+                print(f"   ⚠️ [PREWARM] {group_key} failed: {e}")
+    except Exception as e:
+        print(f"   ⚠️ [PREWARM] Skipped: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
