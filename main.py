@@ -252,10 +252,12 @@ def chat_endpoint(
 
         # Extract raw SQL tool outputs for chart data
         sql_results = [
-            {"sql_result": m.content}
+            {"sql_result": m.content[:3000]}  # truncate large SQL outputs
             for m in messages
             if isinstance(m, ToolMessage) and m.content
         ]
+        # Keep only the last 3 SQL results to avoid overloading recommendations
+        sql_results = sql_results[-3:]
 
         # Extract prior human/assistant turns for context (exclude current turn)
         chat_history = []

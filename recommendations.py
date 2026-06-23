@@ -133,10 +133,19 @@ When the response contains MULTIPLE distinct metrics (e.g. page_views + impressi
 - ALWAYS prefer sql_results over agent_response for extracting data values (raw data is more reliable)
 - Include ALL date rows — never skip dates to save space
 
-Example: daily page_views + impressions + followers → 3 separate LINE charts:
+Example A — single org, multiple metrics → 3 separate LINE charts:
   Chart 1: label="Daily Page Views", data=[{date, page_views}], mark=line, x=date, y=page_views
   Chart 2: label="Daily Post Impressions", data=[{date, impressions}], mark=line, x=date, y=impressions
   Chart 3: label="Daily Followers Gained", data=[{date, followers}], mark=line, x=date, y=followers
+
+Example B — multiple orgs, multiple metrics → one LINE chart per metric, each with color=org:
+  Chart 1: label="Daily Page Views by Org", data=[{date, org, page_views}, ...], mark=line,
+           x=date, y=page_views, color=org (each org is a separate line)
+  Chart 2: label="Daily Post Impressions by Org", data=[{date, org, impressions}, ...], mark=line,
+           x=date, y=impressions, color=org
+  → This way each metric chart shows all orgs as colored lines
+
+When data has both multiple orgs AND multiple metrics: generate one chart per metric with color=org. Do NOT exceed 4 chart recommendations total.
 
 ## STEP 3 — CHART SPECS:
 
@@ -187,7 +196,7 @@ def get_recommendations(
         client = _get_client()
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4096,
+            max_tokens=8192,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
             tools=[_RECOMMENDATION_TOOL],
