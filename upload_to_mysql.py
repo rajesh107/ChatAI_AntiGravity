@@ -183,6 +183,9 @@ database_structure = {
             "organization.csv",
             "geo.csv",
             "followers_by_geo.csv",
+            "industry.csv",
+            "followers_by_industry.csv",
+            "page_statistic_by_geo.csv",
             "time_bound_follower_statistic.csv",
             "time_bound_share_statistic.csv",
             "time_bound_page_statistic.csv"

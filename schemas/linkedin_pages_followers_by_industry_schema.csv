@@ -1,0 +1,7 @@
+column_name,data_type,description
+_fivetran_id,varchar(256),"Fivetran-generated unique hash ID. Primary key for deduplication. Do not use as a business key."
+follower_counts_organic_follower_count,int,"Number of organic (unpaid) followers from this industry."
+follower_counts_paid_follower_count,int,"Number of paid (sponsored) followers from this industry."
+_organization_entity_urn,longtext,"LinkedIn org URN (e.g. urn:li:organization:65015275). Join to organization: CAST(REPLACE(_organization_entity_urn, 'urn:li:organization:', '') AS INTEGER) = organization.id"
+industry_id,bigint,"Numeric industry ID. Foreign key to industry table: followers_by_industry.industry_id = industry.id"
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."

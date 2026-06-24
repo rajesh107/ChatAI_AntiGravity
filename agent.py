@@ -191,6 +191,9 @@ TABLE_GROUPS = {
         "organization",
         "geo",
         "followers_by_geo",
+        "industry",
+        "followers_by_industry",
+        "page_statistic_by_geo",
         "time_bound_follower_statistic",
         "time_bound_share_statistic",
         "time_bound_page_statistic"

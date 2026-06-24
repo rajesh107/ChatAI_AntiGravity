@@ -1,0 +1,4 @@
+column_name,data_type,description
+id,bigint,"Numeric LinkedIn industry ID. Primary key. Join to followers_by_industry via: followers_by_industry.industry_id = industry.id"
+name,longtext,"Human-readable industry name (e.g. 'Information Technology', 'Financial Services'). Use for display in responses."
+_fivetran_synced,timestamp(6),"Timestamp when Fivetran last synced this row. Internal metadata, never expose to users."
